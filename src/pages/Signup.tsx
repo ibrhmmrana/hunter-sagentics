@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 import loginBackground from "@/assets/login-background.jpg";
+import googleLogo from "@/assets/google-logo.png";
 
 export default function Signup() {
   const [firstName, setFirstName] = useState("");
@@ -13,6 +14,11 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
+
+  const onAuthWithGoogle = () => {
+    console.log("Google auth triggered");
+    navigate("/app/home");
+  };
 
   const onCreateAccount = () => {
     console.log("Create account:", email);
@@ -40,6 +46,24 @@ export default function Signup() {
 
           {/* Form */}
           <div className="space-y-4">
+            <Button
+              variant="outline"
+              className="w-full h-12 rounded-full bg-transparent border-gray-700 text-gray-300 hover:bg-gray-700/30 hover:text-white"
+              onClick={onAuthWithGoogle}
+            >
+              <img src={googleLogo} alt="Google" className="mr-2 h-5 w-5" />
+              Continue with Google
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-700" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[#0E1116] px-2 text-gray-500">OR</span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <Input
                 type="text"
