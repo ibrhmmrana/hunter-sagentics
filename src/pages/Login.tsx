@@ -34,7 +34,7 @@ export default function Login() {
               className="h-12 dark:hidden"
             />
             <img 
-              src={hunterLogoDark} 
+              src={hunterLogoLight} 
               alt="Hunter — by Sagentics" 
               className="h-12 hidden dark:block"
             />
