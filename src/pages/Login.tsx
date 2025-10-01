@@ -30,7 +30,7 @@ export default function Login() {
           {/* Logo */}
           <div className="flex justify-center">
             <img 
-              src={hunterLogoLight} 
+              src={hunterLogoDark} 
               alt="Hunter — by Sagentics" 
               className="h-20 dark:hidden"
             />
