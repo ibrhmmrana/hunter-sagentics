@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
+import loginBackground from "@/assets/login-background.jpg";
 
 export default function Signup() {
   const [firstName, setFirstName] = useState("");
@@ -26,14 +27,14 @@ export default function Signup() {
           {/* Logo */}
           <div className="flex justify-center">
             <img 
-              src={hunterLogoLight} 
+              src={hunterLogoDark} 
               alt="Hunter — by Sagentics" 
-              className="h-12 dark:hidden"
+              className="h-20 dark:hidden"
             />
             <img 
               src={hunterLogoDark} 
               alt="Hunter — by Sagentics" 
-              className="h-12 hidden dark:block"
+              className="h-20 hidden dark:block"
             />
           </div>
 
@@ -116,13 +117,12 @@ export default function Signup() {
       </div>
 
       {/* Right: Visual Panel */}
-      <div className="hidden lg:flex flex-1 relative overflow-hidden" style={{
-        background: "linear-gradient(135deg, #1E4E46 0%, #2D7A6E 25%, #1E4E46 50%, #0F2F2A 75%, #0A1F1C 100%)"
-      }}>
-        <div className="absolute inset-0" style={{
-          background: "radial-gradient(circle at 30% 50%, rgba(45, 122, 110, 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(30, 78, 70, 0.3) 0%, transparent 50%)",
-          filter: "blur(60px)"
-        }} />
+      <div className="hidden lg:flex flex-1 relative overflow-hidden">
+        <img 
+          src={loginBackground} 
+          alt="" 
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       </div>
     </div>
   );
