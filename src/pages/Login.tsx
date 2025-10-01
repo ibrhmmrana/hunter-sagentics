@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Chrome } from "lucide-react";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 import loginBackground from "@/assets/login-background.jpg";
+import googleLogo from "@/assets/google-logo.png";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -45,10 +45,10 @@ export default function Login() {
           <div className="space-y-4">
             <Button
               variant="outline"
-              className="w-full h-12 rounded-full bg-transparent border-gray-700 text-gray-300 hover:bg-gray-800/50"
+              className="w-full h-12 rounded-full bg-transparent border-gray-700 text-gray-300 hover:bg-gray-700/30 hover:text-white"
               onClick={onAuthWithGoogle}
             >
-              <Chrome className="mr-2 h-5 w-5" />
+              <img src={googleLogo} alt="Google" className="mr-2 h-5 w-5" />
               Continue with Google
             </Button>
 
