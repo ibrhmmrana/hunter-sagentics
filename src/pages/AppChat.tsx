@@ -74,12 +74,12 @@ export default function AppChat() {
       </div>
 
       {/* Conversation Pane */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-gradient-to-br from-amber-50/30 via-orange-50/20 to-yellow-50/30">
         {selectedThread ? (
           <>
             {/* Header */}
-            <div className="border-b border-sidebar-border px-6 py-3">
-              <h2 className="font-semibold">
+            <div className="border-b border-border/50 px-6 py-4 bg-background/80 backdrop-blur-sm">
+              <h2 className="font-semibold text-lg">
                 {mockThreads.find((t) => t.id === selectedThread)?.title}
               </h2>
             </div>
@@ -90,26 +90,26 @@ export default function AppChat() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-sidebar-border p-4">
-              <div className="max-w-3xl mx-auto">
-                <div className="bg-card rounded-2xl border border-border shadow-sm">
+            <div className="border-t border-border/50 p-6 bg-background/50 backdrop-blur-sm">
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-background rounded-3xl border border-border/50 shadow-lg">
                   <Textarea
-                    placeholder="Enter message"
+                    placeholder="Type your message..."
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="min-h-[80px] border-0 resize-none focus-visible:ring-0"
+                    className="min-h-[100px] border-0 resize-none focus-visible:ring-0 text-base px-5 pt-4"
                   />
-                  <div className="flex items-center justify-between px-4 pb-3">
+                  <div className="flex items-center justify-between px-5 pb-4 pt-2">
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Paperclip className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
+                        <Paperclip className="h-5 w-5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Mic className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
+                        <Mic className="h-5 w-5" />
                       </Button>
                     </div>
-                    <Button size="icon" className="h-8 w-8 rounded-full">
-                      <Send className="h-4 w-4" />
+                    <Button size="icon" className="h-10 w-10 rounded-full shadow-md">
+                      <Send className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
@@ -117,40 +117,44 @@ export default function AppChat() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-3xl mx-auto w-full">
-            <div className="w-full space-y-6">
+          <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-4xl mx-auto w-full">
+            <div className="w-full space-y-8">
+              {/* Heading */}
+              <h1 className="text-4xl font-semibold text-center text-foreground mb-4">
+                How can I help?
+              </h1>
+
               {/* Input Box */}
-              <div className="bg-card rounded-2xl border border-border shadow-sm">
+              <div className="bg-background rounded-3xl border border-border/50 shadow-xl">
                 <Textarea
                   placeholder="Ask Hunter to analyze results, draft outreach, or create lists…"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="min-h-[120px] border-0 resize-none focus-visible:ring-0"
+                  className="min-h-[140px] border-0 resize-none focus-visible:ring-0 text-base px-6 pt-5"
                 />
-                <div className="flex items-center justify-between px-4 pb-3">
+                <div className="flex items-center justify-between px-6 pb-4 pt-2">
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Paperclip className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
+                      <Paperclip className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Mic className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
+                      <Mic className="h-5 w-5" />
                     </Button>
                   </div>
-                  <Button size="icon" className="h-8 w-8 rounded-full">
-                    <Send className="h-4 w-4" />
+                  <Button size="icon" className="h-10 w-10 rounded-full shadow-md">
+                    <Send className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
 
               {/* Quick Prompts */}
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Try asking:</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2 justify-center">
                   {quickPrompts.map((prompt, i) => (
                     <button
                       key={i}
                       onClick={() => setMessage(prompt)}
-                      className="px-4 py-2 rounded-full bg-secondary hover:bg-secondary/80 text-sm transition-colors"
+                      className="px-4 py-2.5 rounded-full bg-background border border-border/60 hover:bg-muted hover:border-border text-sm transition-all shadow-sm"
                     >
                       {prompt}
                     </button>
