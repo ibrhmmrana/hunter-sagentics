@@ -6,8 +6,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const mockThreads = [
-  { id: "1", title: "New Task", date: "Today • October 1" },
-  { id: "2", title: "Finding Software Engineers in SF", date: "Thursday" },
+  { id: "1", title: "Sandton: Restaurants — No Website", date: "Today" },
+  { id: "2", title: "Rosebank: Gyms — Missing Socials", date: "Yesterday" },
+  { id: "3", title: "Export list for Cape Town dentists", date: "Oct 29" },
+  { id: "4", title: "Draft outreach for 'Urban Coffee'", date: "Oct 28" },
+];
+
+const quickPrompts = [
+  "Find restaurants in Sandton without websites",
+  "Show top 20 leads with no social profiles",
+  "Summarize ratings distribution by city",
+  "Draft an outreach email for 'Golden Bakery'",
+  "Create list: Rosebank • Gyms • No Website",
+  "Export CSV for my current filters",
 ];
 
 export default function AppChat() {
@@ -106,8 +117,47 @@ export default function AppChat() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-muted-foreground">Select a thread to start chatting</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-3xl mx-auto w-full">
+            <div className="w-full space-y-6">
+              {/* Input Box */}
+              <div className="bg-card rounded-2xl border border-border shadow-sm">
+                <Textarea
+                  placeholder="Ask Hunter to analyze results, draft outreach, or create lists…"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="min-h-[120px] border-0 resize-none focus-visible:ring-0"
+                />
+                <div className="flex items-center justify-between px-4 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Mic className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button size="icon" className="h-8 w-8 rounded-full">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Quick Prompts */}
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Try asking:</p>
+                <div className="flex flex-wrap gap-2">
+                  {quickPrompts.map((prompt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setMessage(prompt)}
+                      className="px-4 py-2 rounded-full bg-secondary hover:bg-secondary/80 text-sm transition-colors"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
