@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Chrome } from "lucide-react";
+import hunterLogoLight from "@/assets/hunter-logo-light.png";
+import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 
 const AuthCollage = () => {
   const tiles = [
@@ -63,11 +65,17 @@ export default function Auth() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">H</span>
-            </div>
-            <span className="text-2xl font-bold text-foreground">Hunter</span>
+          <div>
+            <img 
+              src={hunterLogoLight} 
+              alt="Hunter — by Sagentics" 
+              className="h-10 dark:hidden"
+            />
+            <img 
+              src={hunterLogoDark} 
+              alt="Hunter — by Sagentics" 
+              className="h-10 hidden dark:block"
+            />
           </div>
 
           {/* Card */}
@@ -75,7 +83,7 @@ export default function Auth() {
             <div className="space-y-2">
               <h1 className="text-3xl font-bold text-foreground">Create your free account</h1>
               <p className="text-muted-foreground">
-                Search and filter prospect data. No credit card required.
+                Search and filter prospect data with Hunter. No credit card required.
               </p>
             </div>
 

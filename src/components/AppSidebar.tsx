@@ -1,5 +1,5 @@
-import { Home, MessageSquare, Search, FileText, FolderOpen, Settings, Plus, Gift, PanelLeftClose, PanelLeft } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Home, MessageSquare, Search, FileText, FolderOpen, Settings } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -15,19 +15,21 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import hunterLogoLight from "@/assets/hunter-logo-light.png";
+import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 
 const mainNavItems = [
   { title: "Home", url: "/app/home", icon: Home },
-  { title: "Chat", url: "/app/chat", icon: MessageSquare },
   { title: "Scrape", url: "/app/scrape", icon: Search },
   { title: "Results", url: "/app/results", icon: FileText },
   { title: "Lists", url: "/app/lists", icon: FolderOpen },
+  { title: "Chat", url: "/app/chat", icon: MessageSquare },
   { title: "Settings", url: "/app/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
+  const navigate = useNavigate();
   const creditsUsed = 310;
   const creditsTotal = 400;
   const creditsPercent = (creditsUsed / creditsTotal) * 100;
@@ -36,8 +38,29 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <div className="flex h-full flex-col">
-        {/* Workspace Switcher */}
+        {/* Logo & Workspace Switcher */}
         <div className="border-b border-sidebar-border p-4">
+          <div className="flex items-center gap-3 mb-3">
+            {!isCollapsed && (
+              <img 
+                src={hunterLogoLight} 
+                alt="Hunter — by Sagentics" 
+                className="h-8 dark:hidden"
+              />
+            )}
+            {!isCollapsed && (
+              <img 
+                src={hunterLogoDark} 
+                alt="Hunter — by Sagentics" 
+                className="h-8 hidden dark:block"
+              />
+            )}
+            {isCollapsed && (
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-primary-foreground font-bold text-sm">H</span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
@@ -80,19 +103,13 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
 
-        {/* Footer with referral & credits */}
+        {/* Footer with credits */}
         {!isCollapsed && (
-          <SidebarFooter className="p-4 space-y-4">
-            <Card className="p-3 bg-primary/5 border-primary/20">
-              <div className="flex items-start gap-2 mb-2">
-                <Gift className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <p className="text-xs text-muted-foreground">
-                  Get $20 for every friend you refer.
-                </p>
-              </div>
-            </Card>
-
-            <div className="space-y-2">
+          <SidebarFooter className="p-4">
+            <div 
+              className="space-y-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => navigate("/app/settings?section=credits")}
+            >
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Credits remaining</span>
                 <span className="font-medium">{creditsUsed} / {creditsTotal}</span>

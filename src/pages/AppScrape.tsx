@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -64,8 +65,8 @@ interface SearchPayload {
 }
 
 interface JobStatus {
-  id: string;
-  status: "queued" | "running" | "completed" | "failed";
+  jobId: string;
+  status: "Queued" | "Running" | "Completed" | "Failed";
   startedAt: string;
 }
 
@@ -165,9 +166,9 @@ export default function AppScrape() {
 
     const mockJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setJobStatus({
-      id: mockJobId,
-      status: "running",
-      startedAt: new Date().toISOString(),
+      jobId: mockJobId,
+      status: "Running",
+      startedAt: new Date().toLocaleString(),
     });
 
     toast.success("Search started!", {
@@ -175,29 +176,16 @@ export default function AppScrape() {
     });
   };
 
-  const onRefreshJob = (jobId: string) => {
+  const onRefreshJob = () => {
     // TODO: Poll n8n/Apify for job status
-    console.log("onRefreshJob called for:", jobId);
+    console.log("onRefreshJob called for:", jobStatus?.jobId);
     toast.info("Job status refreshed");
   };
 
-  const onCancelJob = (jobId: string) => {
-    // TODO: Send cancel request to n8n
-    console.log("onCancelJob called for:", jobId);
-    setJobStatus(null);
-    toast.info("Job cancelled");
-  };
-
-  const onSavePreset = () => {
-    // TODO: Save preset to Supabase or localStorage
-    console.log("onSavePreset called with:", payload);
-    toast.success("Preset saved!");
-  };
-
-  const onViewResults = (jobId: string) => {
+  const onViewResults = () => {
     // TODO: Navigate to /app/results?queryId={jobId}
-    console.log("onViewResults called for:", jobId);
-    window.location.href = `/app/results?queryId=${jobId}`;
+    console.log("onViewResults called for:", jobStatus?.jobId);
+    window.location.href = `/app/results?queryId=${jobStatus?.jobId}`;
   };
 
   // Preset helpers
@@ -254,18 +242,51 @@ export default function AppScrape() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <div className="border-b border-sidebar-border px-6 py-4">
+      <div className="border-b border-sidebar-border px-6 py-3">
         <h1 className="text-2xl font-bold">New Search</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Tell Hunter what to find. We'll hunt for businesses with missing web presence so you can pitch them.
-        </p>
+        <p className="text-sm text-muted-foreground">Tell Hunter what to find. We'll hunt for businesses with missing web presence so you can pitch them.</p>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 grid lg:grid-cols-2 gap-6 p-6">
-        {/* Left: Form */}
-        <div className="space-y-6">
-          <Card className="p-6 space-y-6 lg:sticky lg:top-6">
+      {/* Job Status Bar (after submit) */}
+      {jobStatus && (
+        <div className="border-b border-sidebar-border px-6 py-4 bg-muted/30">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Job ID</div>
+                <div className="font-mono text-sm">{jobStatus.jobId.slice(0, 8)}...</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Status</div>
+                <Badge variant={jobStatus.status === "Completed" ? "default" : jobStatus.status === "Running" ? "secondary" : "outline"}>
+                  {jobStatus.status}
+                </Badge>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Started</div>
+                <div className="text-sm">{jobStatus.startedAt}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={onRefreshJob}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button size="sm" onClick={onViewResults}>
+                View Results
+              </Button>
+            </div>
+          </div>
+          {jobStatus.status === "Running" && (
+            <Progress value={undefined} className="h-1 mt-3" />
+          )}
+          <p className="text-xs text-muted-foreground mt-2">Powered by Apify Google Maps Scraper via n8n</p>
+        </div>
+      )}
+
+      {/* Form - Single Centered Card */}
+      <div className="flex-1 overflow-auto p-8">
+        <div className="max-w-2xl mx-auto">
+          <Card className="p-6 space-y-6">
             {/* Presets Row */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Quick Presets</Label>
@@ -644,107 +665,8 @@ export default function AppScrape() {
                 <ArrowUp className="mr-2 h-4 w-4" />
                 Run Search
               </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={onSavePreset}
-              >
-                Save as Preset
-              </Button>
             </div>
           </Card>
-        </div>
-
-        {/* Right: Preview + Status */}
-        <div className="space-y-6">
-          {/* JSON Preview */}
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">Live JSON Preview</h3>
-                <p className="text-xs text-muted-foreground">
-                  Size: {(payloadSize / 1024).toFixed(2)} KB
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={copyPayload}>
-                <Copy className="mr-2 h-4 w-4" />
-                Copy
-              </Button>
-            </div>
-            <ScrollArea className="h-[400px] w-full">
-              <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
-                {payloadString}
-              </pre>
-            </ScrollArea>
-          </Card>
-
-          {/* Job Status */}
-          {jobStatus && (
-            <Card className="p-6 space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold">Job Status</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    ID: {jobStatus.id}
-                  </p>
-                </div>
-                <Badge
-                  variant={
-                    jobStatus.status === "completed"
-                      ? "default"
-                      : jobStatus.status === "failed"
-                      ? "destructive"
-                      : "secondary"
-                  }
-                >
-                  {jobStatus.status}
-                </Badge>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <p className="text-muted-foreground">
-                  Started: {new Date(jobStatus.startedAt).toLocaleString()}
-                </p>
-                {jobStatus.status === "running" && (
-                  <div className="space-y-2">
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary animate-pulse" style={{ width: "60%" }} />
-                    </div>
-                    <p className="text-xs text-muted-foreground">Processing...</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRefreshJob(jobStatus.id)}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
-                {jobStatus.status === "completed" && (
-                  <Button size="sm" onClick={() => onViewResults(jobStatus.id)}>
-                    View Results
-                  </Button>
-                )}
-                {jobStatus.status !== "completed" && jobStatus.status !== "failed" && (
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onCancelJob(jobStatus.id)}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground pt-2 border-t">
-                Powered by Apify Google Maps Scraper via n8n
-              </p>
-            </Card>
-          )}
         </div>
       </div>
     </div>

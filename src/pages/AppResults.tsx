@@ -59,7 +59,7 @@ export default function AppResults() {
   const [minRating, setMinRating] = useState("none");
   const [minReviews, setMinReviews] = useState("");
   const [maxReviews, setMaxReviews] = useState("");
-  const [websiteFilter, setWebsiteFilter] = useState<"any" | "yes" | "no">("any");
+  const [websiteFilter, setWebsiteFilter] = useState<"any" | "yes" | "no">("no");
   const [socialsFilter, setSocialsFilter] = useState<"any" | "no">("any");
   const [openNow, setOpenNow] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);

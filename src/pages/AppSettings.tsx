@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   User,
   Mic,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -23,22 +25,25 @@ import {
 
 const settingsNav = [
   { id: "general", label: "General", icon: User },
-  { id: "speech", label: "Speech to Text", icon: Mic },
   { id: "connections", label: "Connections", icon: Link2 },
-  { id: "phone", label: "Phone Numbers", icon: Phone },
-  { id: "computers", label: "Computers", icon: Monitor },
-  { id: "notifications", label: "Notifications", icon: Bell },
-];
-
-const workspaceNav = [
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+  { id: "api-keys", label: "API Keys", icon: CreditCard },
   { id: "billing", label: "Billing", icon: CreditCard },
+  { id: "credits", label: "Credits", icon: CreditCard },
   { id: "members", label: "Members", icon: Users },
 ];
 
 export default function AppSettings() {
-  const [activeSection, setActiveSection] = useState("general");
+  const [searchParams] = useSearchParams();
+  const sectionParam = searchParams.get("section");
+  const [activeSection, setActiveSection] = useState(sectionParam || "general");
   const [theme, setTheme] = useState("light");
+
+  // Update active section when URL changes
+  useEffect(() => {
+    if (sectionParam) {
+      setActiveSection(sectionParam);
+    }
+  }, [sectionParam]);
 
   // Mock handler - no real logic
   const onThemeToggle = (mode: string) => {
@@ -50,43 +55,23 @@ export default function AppSettings() {
   return (
     <div className="h-screen flex">
       {/* Settings Nav */}
-      <div className="w-64 border-r border-sidebar-border p-4 space-y-6">
-        <h2 className="font-semibold px-3">Settings</h2>
+      <div className="w-64 border-r border-sidebar-border p-4 space-y-2">
+        <h2 className="font-semibold px-3 mb-4">Settings</h2>
 
-        <div className="space-y-1">
-          {settingsNav.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                activeSection === item.id
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "hover:bg-sidebar-accent/50"
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground px-3">Workspace</p>
-          {workspaceNav.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveSection(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                activeSection === item.id
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "hover:bg-sidebar-accent/50"
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
+        {settingsNav.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveSection(item.id)}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              activeSection === item.id
+                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                : "hover:bg-sidebar-accent/50"
+            }`}
+          >
+            <item.icon className="h-4 w-4" />
+            <span>{item.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Settings Content */}
@@ -167,10 +152,173 @@ export default function AppSettings() {
             </>
           )}
 
-          {activeSection !== "general" && (
+          {activeSection === "connections" && (
+            <>
+              <h1 className="text-2xl font-bold">Connections</h1>
+              <p className="text-muted-foreground">Manage your external service integrations</p>
+
+              <div className="space-y-6 mt-6">
+                {/* n8n Card */}
+                <div className="border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">n8n</h3>
+                      <p className="text-sm text-muted-foreground">Workflow automation webhook</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs bg-muted">Not connected</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">Base URL</label>
+                      <Input placeholder="https://your-n8n.com" className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Webhook Path</label>
+                      <Input placeholder="/webhook/hunter-scrape" className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Auth Header (optional)</label>
+                      <Input type="password" placeholder="Bearer token..." className="mt-1" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline">Test Connection</Button>
+                    <Button>Save</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Last tested: Never</p>
+                </div>
+
+                {/* Apify Card */}
+                <div className="border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">Apify</h3>
+                      <p className="text-sm text-muted-foreground">Google Maps Scraper actor</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs bg-muted">Not connected</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">Actor ID</label>
+                      <Input placeholder="compass/crawler-google-places" className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Dataset Name (optional)</label>
+                      <Input placeholder="hunter-leads" className="mt-1" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline">Test Connection</Button>
+                    <Button>Save</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Last tested: Never</p>
+                </div>
+
+                {/* Supabase Card */}
+                <div className="border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">Supabase</h3>
+                      <p className="text-sm text-muted-foreground">Backend database & storage</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs bg-green-500/10 text-green-600">Connected</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">Project URL</label>
+                      <Input placeholder="https://xxx.supabase.co" disabled className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Public Key</label>
+                      <Input type="password" placeholder="eyJ..." disabled className="mt-1" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Schema</label>
+                      <Input value="public" disabled className="mt-1" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Managed by Lovable Cloud</p>
+                </div>
+
+                {/* Stripe Card */}
+                <div className="border rounded-lg p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">Stripe</h3>
+                      <p className="text-sm text-muted-foreground">Billing & payments</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs bg-muted">Not connected</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Manage your subscription and payment methods</p>
+                  <Button>Open Billing Portal</Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeSection === "api-keys" && (
+            <>
+              <h1 className="text-2xl font-bold">API Keys</h1>
+              <p className="text-muted-foreground">Manage your API keys for external integrations</p>
+              <div className="mt-6 text-center text-muted-foreground">
+                API key management coming soon
+              </div>
+            </>
+          )}
+
+          {activeSection === "billing" && (
+            <>
+              <h1 className="text-2xl font-bold">Billing</h1>
+              <p className="text-muted-foreground">Manage your subscription and payment methods</p>
+              <div className="mt-6 text-center text-muted-foreground">
+                Billing management coming soon
+              </div>
+            </>
+          )}
+
+          {activeSection === "credits" && (
+            <>
+              <h1 className="text-2xl font-bold">Credits</h1>
+              <p className="text-muted-foreground">Track your Hunter credit usage</p>
+              
+              <div className="mt-6 space-y-6">
+                <div className="border rounded-lg p-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Credits remaining</span>
+                      <span className="text-2xl font-bold">310 / 400</span>
+                    </div>
+                    <Progress value={77.5} className="h-3" />
+                  </div>
+                  <Button className="w-full mt-4">Upgrade Plan</Button>
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  Usage chart and history coming soon
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeSection === "members" && (
+            <>
+              <h1 className="text-2xl font-bold">Members</h1>
+              <p className="text-muted-foreground">Manage team access and permissions</p>
+              <div className="mt-6 text-center text-muted-foreground">
+                Team management coming soon
+              </div>
+            </>
+          )}
+
+          {activeSection !== "general" && 
+           activeSection !== "connections" && 
+           activeSection !== "api-keys" && 
+           activeSection !== "billing" && 
+           activeSection !== "credits" && 
+           activeSection !== "members" && (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">
-                {settingsNav.find((n) => n.id === activeSection)?.label || workspaceNav.find((n) => n.id === activeSection)?.label} settings coming soon
+                {settingsNav.find((n) => n.id === activeSection)?.label} settings coming soon
               </p>
             </div>
           )}
