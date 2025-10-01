@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Chrome } from "lucide-react";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
+import loginBackground from "@/assets/login-background.jpg";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -115,13 +116,12 @@ export default function Login() {
       </div>
 
       {/* Right: Visual Panel */}
-      <div className="hidden lg:flex flex-1 relative overflow-hidden" style={{
-        background: "linear-gradient(135deg, #1E4E46 0%, #2D7A6E 25%, #1E4E46 50%, #0F2F2A 75%, #0A1F1C 100%)"
-      }}>
-        <div className="absolute inset-0" style={{
-          background: "radial-gradient(circle at 30% 50%, rgba(45, 122, 110, 0.4) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(30, 78, 70, 0.3) 0%, transparent 50%)",
-          filter: "blur(60px)"
-        }} />
+      <div className="hidden lg:flex flex-1 relative overflow-hidden">
+        <img 
+          src={loginBackground} 
+          alt="" 
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       </div>
     </div>
   );
