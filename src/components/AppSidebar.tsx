@@ -45,14 +45,14 @@ export function AppSidebar() {
               <img 
                 src={hunterLogoLight} 
                 alt="Hunter — by Sagentics" 
-                className="h-8 dark:hidden"
+                className="h-12 dark:hidden"
               />
             )}
             {!isCollapsed && (
               <img 
                 src={hunterLogoDark} 
                 alt="Hunter — by Sagentics" 
-                className="h-8 hidden dark:block"
+                className="h-12 hidden dark:block"
               />
             )}
             {isCollapsed && (
