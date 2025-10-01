@@ -79,7 +79,7 @@ export default function AppScrape() {
   const [skipClosedPlaces, setSkipClosedPlaces] = useState(true);
   const [website, setWebsite] = useState("withoutWebsite");
   const [withoutSocials, setWithoutSocials] = useState(false);
-  const [placeMinimumStars, setPlaceMinimumStars] = useState("");
+  const [placeMinimumStars, setPlaceMinimumStars] = useState("none");
   const [reviewsSort, setReviewsSort] = useState("newest");
   const [reviewsOrigin, setReviewsOrigin] = useState("all");
   const [scrapeContacts, setScrapeContacts] = useState(true);
@@ -120,7 +120,7 @@ export default function AppScrape() {
     skipClosedPlaces,
     website,
     searchMatching: "all",
-    placeMinimumStars,
+    placeMinimumStars: placeMinimumStars === "none" ? "" : placeMinimumStars,
     maxQuestions,
     maxReviews,
     reviewsSort,
@@ -142,7 +142,7 @@ export default function AppScrape() {
         setSearchStringsArray(parsed.searchStringsArray || []);
         setMaxCrawledPlacesPerSearch([parsed.maxCrawledPlacesPerSearch || 200]);
         setWebsite(parsed.website || "withoutWebsite");
-        setPlaceMinimumStars(parsed.placeMinimumStars || "");
+        setPlaceMinimumStars(parsed.placeMinimumStars || "none");
       } catch (e) {
         console.error("Failed to parse saved form", e);
       }
@@ -472,7 +472,7 @@ export default function AppScrape() {
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="3.5">3.5+</SelectItem>
                     <SelectItem value="4.0">4.0+</SelectItem>
                     <SelectItem value="4.5">4.5+</SelectItem>

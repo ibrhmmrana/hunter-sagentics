@@ -56,7 +56,7 @@ export default function AppResults() {
   const [searchText, setSearchText] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState("");
+  const [minRating, setMinRating] = useState("none");
   const [minReviews, setMinReviews] = useState("");
   const [maxReviews, setMaxReviews] = useState("");
   const [websiteFilter, setWebsiteFilter] = useState<"any" | "yes" | "no">("any");
@@ -108,7 +108,7 @@ export default function AppResults() {
       }
 
       // Rating
-      if (minRating && (!lead.rating || lead.rating < parseFloat(minRating))) {
+      if (minRating && minRating !== "none" && (!lead.rating || lead.rating < parseFloat(minRating))) {
         return false;
       }
 
@@ -176,7 +176,7 @@ export default function AppResults() {
     setSearchText("");
     setSelectedCategories([]);
     setSelectedCities([]);
-    setMinRating("");
+    setMinRating("none");
     setMinReviews("");
     setMaxReviews("");
     setWebsiteFilter("any");
@@ -335,7 +335,7 @@ export default function AppResults() {
               <SelectValue placeholder="Min Rating" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Any</SelectItem>
+              <SelectItem value="none">Any</SelectItem>
               <SelectItem value="3.5">3.5+</SelectItem>
               <SelectItem value="4.0">4.0+</SelectItem>
               <SelectItem value="4.5">4.5+</SelectItem>
