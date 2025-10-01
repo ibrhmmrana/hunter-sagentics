@@ -29,9 +29,9 @@ import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 const mainNavItems = [
   { title: "Home", url: "/app/home", icon: Home },
   { title: "Scrape", url: "/app/scrape", icon: Search },
+  { title: "Chat", url: "/app/chat", icon: MessageSquare },
   { title: "Results", url: "/app/results", icon: FileText },
   { title: "Lists", url: "/app/lists", icon: FolderOpen },
-  { title: "Chat", url: "/app/chat", icon: MessageSquare },
   { title: "Settings", url: "/app/settings", icon: Settings },
 ];
 
