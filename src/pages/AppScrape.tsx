@@ -302,7 +302,7 @@ export default function AppScrape() {
               <div className="relative">
                 <Input
                   id="business-type"
-                  placeholder="Type or select business type"
+                  placeholder="e.g., Restaurant"
                   value={businessTypeInput}
                   onChange={(e) => setBusinessTypeInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -315,10 +315,9 @@ export default function AppScrape() {
                   onBlur={() => setTimeout(() => setShowBusinessTypeSuggestions(false), 200)}
                   className="h-12 text-base"
                   aria-required="true"
-                  list="business-types-list"
                 />
               </div>
-              {showBusinessTypeSuggestions && filteredBusinessTypes.length > 0 && businessTypeInput && (
+              {showBusinessTypeSuggestions && filteredBusinessTypes.length > 0 && (
                 <Card className="absolute z-50 w-full mt-1 p-1 max-h-48 overflow-auto bg-popover border-border shadow-lg">
                   {filteredBusinessTypes.map((type) => (
                     <button
