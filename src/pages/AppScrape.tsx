@@ -1,18 +1,11 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, MapPin } from "lucide-react";
+import { RefreshCw, MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
@@ -48,21 +41,20 @@ interface JobStatus {
 }
 
 export default function AppScrape() {
-  // Form state (only 4 fields)
-  const [location, setLocation] = useState("");
-  const [businessType, setBusinessType] = useState("");
-  const [customBusinessType, setCustomBusinessType] = useState("");
+  // Form state (only 4 fields, but location and businessType are now arrays)
+  const [locations, setLocations] = useState<string[]>([]);
+  const [locationInput, setLocationInput] = useState("");
+  const [businessTypes, setBusinessTypes] = useState<string[]>([]);
+  const [businessTypeInput, setBusinessTypeInput] = useState("");
   const [websiteRequirement, setWebsiteRequirement] = useState<"with" | "without" | "any">("any");
   const [leadCount, setLeadCount] = useState([200]);
   
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [showBusinessTypeSuggestions, setShowBusinessTypeSuggestions] = useState(false);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
 
   // Validation
-  const isValid = location.trim() !== "" && (businessType !== "" || customBusinessType.trim() !== "");
-  
-  // Get final business type (dropdown or custom)
-  const finalBusinessType = businessType === "custom" ? customBusinessType : businessType;
+  const isValid = locations.length > 0 && businessTypes.length > 0;
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -70,9 +62,8 @@ export default function AppScrape() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setLocation(parsed.location || "");
-        setBusinessType(parsed.businessType || "");
-        setCustomBusinessType(parsed.customBusinessType || "");
+        setLocations(parsed.locations || []);
+        setBusinessTypes(parsed.businessTypes || []);
         setWebsiteRequirement(parsed.websiteRequirement || "any");
         setLeadCount([parsed.leadCount || 200]);
       } catch (e) {
@@ -84,19 +75,43 @@ export default function AppScrape() {
   // Save to localStorage on change
   useEffect(() => {
     localStorage.setItem("hunter_minimal_search", JSON.stringify({
-      location,
-      businessType,
-      customBusinessType,
+      locations,
+      businessTypes,
       websiteRequirement,
       leadCount: leadCount[0]
     }));
-  }, [location, businessType, customBusinessType, websiteRequirement, leadCount]);
+  }, [locations, businessTypes, websiteRequirement, leadCount]);
+
+  // Handlers for adding/removing locations and business types
+  const addLocation = (loc: string) => {
+    const trimmed = loc.trim();
+    if (trimmed && !locations.includes(trimmed)) {
+      setLocations([...locations, trimmed]);
+      setLocationInput("");
+    }
+  };
+
+  const removeLocation = (loc: string) => {
+    setLocations(locations.filter((l) => l !== loc));
+  };
+
+  const addBusinessType = (type: string) => {
+    const trimmed = type.trim();
+    if (trimmed && !businessTypes.includes(trimmed)) {
+      setBusinessTypes([...businessTypes, trimmed]);
+      setBusinessTypeInput("");
+    }
+  };
+
+  const removeBusinessType = (type: string) => {
+    setBusinessTypes(businessTypes.filter((t) => t !== type));
+  };
 
   // Mock handlers - comment stubs only
   const onRunSearch = () => {
     // TODO: Integrate with backend
-    // onRunSearch({ location, businessType: finalBusinessType, websiteRequirement, leadCount: leadCount[0] })
-    console.log("onRunSearch", { location, businessType: finalBusinessType, websiteRequirement, leadCount: leadCount[0] });
+    // onRunSearch({ locations, businessTypes, websiteRequirement, leadCount: leadCount[0] })
+    console.log("onRunSearch", { locations, businessTypes, websiteRequirement, leadCount: leadCount[0] });
 
     const mockJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setJobStatus({
@@ -131,16 +146,19 @@ export default function AppScrape() {
     // TODO: Apply preset
     // onPresetClick(presetId)
     const preset = PRESETS[presetIndex];
-    setLocation(preset.location);
-    setBusinessType(preset.businessType);
-    setCustomBusinessType("");
+    setLocations([preset.location]);
+    setBusinessTypes([preset.businessType]);
     setWebsiteRequirement(preset.websiteReq);
     setLeadCount([preset.leads]);
     toast.success("Preset applied", { description: preset.label });
   };
 
   const filteredLocations = SA_LOCATIONS.filter((loc) =>
-    loc.toLowerCase().includes(location.toLowerCase())
+    loc.toLowerCase().includes(locationInput.toLowerCase())
+  );
+
+  const filteredBusinessTypes = BUSINESS_TYPES.filter((type) =>
+    type.toLowerCase().includes(businessTypeInput.toLowerCase())
   );
 
   return (
@@ -198,18 +216,41 @@ export default function AppScrape() {
               </div>
             </div>
 
-            {/* Location */}
+            {/* Location (multiple) */}
             <div className="space-y-2 relative">
               <Label htmlFor="location" className="text-base font-medium">
                 Location <span className="text-destructive">*</span>
               </Label>
+              {locations.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {locations.map((loc) => (
+                    <Badge key={loc} variant="default" className="gap-1.5 px-3 py-1">
+                      {loc}
+                      <button
+                        type="button"
+                        onClick={() => removeLocation(loc)}
+                        className="hover:bg-background/20 rounded-full"
+                        aria-label={`Remove ${loc}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
                 <Input
                   id="location"
                   placeholder="e.g., Sandton"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addLocation(locationInput);
+                    }
+                  }}
                   onFocus={() => setShowLocationSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
                   className="pl-10 h-12 text-base"
@@ -224,7 +265,7 @@ export default function AppScrape() {
                       type="button"
                       className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm transition-colors"
                       onClick={() => {
-                        setLocation(loc);
+                        addLocation(loc);
                         setShowLocationSuggestions(false);
                       }}
                     >
@@ -233,36 +274,68 @@ export default function AppScrape() {
                   ))}
                 </Card>
               )}
-              <p className="text-xs text-muted-foreground">e.g., Sandton</p>
+              <p className="text-xs text-muted-foreground">Type and press Enter to add multiple locations</p>
             </div>
 
-            {/* Business Type */}
-            <div className="space-y-2">
+            {/* Business Type (multiple) */}
+            <div className="space-y-2 relative">
               <Label htmlFor="business-type" className="text-base font-medium">
                 Business type <span className="text-destructive">*</span>
               </Label>
-              <Select value={businessType} onValueChange={setBusinessType}>
-                <SelectTrigger id="business-type" className="h-12 text-base" aria-required="true">
-                  <SelectValue placeholder="Pick a type or enter your own" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  {BUSINESS_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
+              {businessTypes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {businessTypes.map((type) => (
+                    <Badge key={type} variant="default" className="gap-1.5 px-3 py-1">
                       {type}
-                    </SelectItem>
+                      <button
+                        type="button"
+                        onClick={() => removeBusinessType(type)}
+                        className="hover:bg-background/20 rounded-full"
+                        aria-label={`Remove ${type}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
                   ))}
-                  <SelectItem value="custom">Custom...</SelectItem>
-                </SelectContent>
-              </Select>
-              {businessType === "custom" && (
-                <Input
-                  placeholder="Enter custom business type"
-                  value={customBusinessType}
-                  onChange={(e) => setCustomBusinessType(e.target.value)}
-                  className="h-12 text-base mt-2"
-                />
+                </div>
               )}
-              <p className="text-xs text-muted-foreground">Pick a type or enter your own</p>
+              <div className="relative">
+                <Input
+                  id="business-type"
+                  placeholder="Type or select business type"
+                  value={businessTypeInput}
+                  onChange={(e) => setBusinessTypeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addBusinessType(businessTypeInput);
+                    }
+                  }}
+                  onFocus={() => setShowBusinessTypeSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowBusinessTypeSuggestions(false), 200)}
+                  className="h-12 text-base"
+                  aria-required="true"
+                  list="business-types-list"
+                />
+              </div>
+              {showBusinessTypeSuggestions && filteredBusinessTypes.length > 0 && businessTypeInput && (
+                <Card className="absolute z-50 w-full mt-1 p-1 max-h-48 overflow-auto bg-popover border-border shadow-lg">
+                  {filteredBusinessTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm transition-colors"
+                      onClick={() => {
+                        addBusinessType(type);
+                        setShowBusinessTypeSuggestions(false);
+                      }}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </Card>
+              )}
+              <p className="text-xs text-muted-foreground">Type and press Enter to add multiple business types</p>
             </div>
 
             {/* Website Requirement */}
