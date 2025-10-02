@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { ArrowUp, Copy, RefreshCw, X, Plus, MapPin } from "lucide-react";
+import { RefreshCw, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -13,56 +13,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 
-// South African cities and suburbs for location suggestions
+// Location suggestions
 const SA_LOCATIONS = [
-  "Johannesburg", "Sandton", "Rosebank", "Cape Town", "Durban",
-  "Pretoria", "Port Elizabeth", "Bloemfontein", "East London",
-  "Pietermaritzburg", "Benoni", "Tembisa", "Vereeniging", "Centurion",
-  "Roodepoort", "Soweto", "Midrand", "Randburg", "Boksburg", "Springs"
+  "Sandton", "Rosebank", "Cape Town", "Durban", "Pretoria", "Johannesburg"
 ];
 
-// Common business categories
-const COMMON_CATEGORIES = [
-  "Restaurant", "Salon", "Dentist", "Gym", "Coffee", 
-  "Auto repair", "Bakery", "Spa", "Clinic", "Pharmacy"
+// Common business types
+const BUSINESS_TYPES = [
+  "Restaurant", "Salon", "Dentist", "Gym", "Coffee shop", 
+  "Bakery", "Auto repair", "Real estate", "Hardware store", "Pharmacy"
 ];
 
-interface SearchPayload {
-  includeWebResults: boolean;
-  language: string;
-  locationQuery: string;
-  maxCrawledPlacesPerSearch: number;
-  maxImages: number;
-  maximumLeadsEnrichmentRecords: number;
-  scrapeContacts: boolean;
-  scrapeDirectories: boolean;
-  scrapeImageAuthors: boolean;
-  scrapePlaceDetailPage: boolean;
-  scrapeReviewsPersonalData: boolean;
-  scrapeTableReservationProvider: boolean;
-  searchStringsArray: string[];
-  skipClosedPlaces: boolean;
-  website: string;
-  searchMatching: string;
-  placeMinimumStars: string;
-  maxQuestions: number;
-  maxReviews: number;
-  reviewsSort: string;
-  reviewsFilterString: string;
-  reviewsOrigin: string;
-  allPlacesNoSearchAction: string;
-}
+// Presets that autofill all four fields
+const PRESETS: Array<{
+  label: string;
+  location: string;
+  businessType: string;
+  websiteReq: "with" | "without" | "any";
+  leads: number;
+}> = [
+  { label: "Sandton · Restaurants · No Website · 200", location: "Sandton", businessType: "Restaurant", websiteReq: "without", leads: 200 },
+  { label: "Rosebank · Gyms · No Website · 150", location: "Rosebank", businessType: "Gym", websiteReq: "without", leads: 150 },
+  { label: "Cape Town · Salons · No Website · 300", location: "Cape Town", businessType: "Salon", websiteReq: "without", leads: 300 },
+  { label: "Johannesburg · Coffee shops · With Website · 100", location: "Johannesburg", businessType: "Coffee shop", websiteReq: "with", leads: 100 },
+];
 
 interface JobStatus {
   jobId: string;
@@ -71,79 +48,33 @@ interface JobStatus {
 }
 
 export default function AppScrape() {
-  // Form state
-  const [locationQuery, setLocationQuery] = useState("");
+  // Form state (only 4 fields)
+  const [location, setLocation] = useState("");
+  const [businessType, setBusinessType] = useState("");
+  const [customBusinessType, setCustomBusinessType] = useState("");
+  const [websiteRequirement, setWebsiteRequirement] = useState<"with" | "without" | "any">("any");
+  const [leadCount, setLeadCount] = useState([200]);
+  
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-  const [searchStringsArray, setSearchStringsArray] = useState<string[]>([]);
-  const [newCategory, setNewCategory] = useState("");
-  const [maxCrawledPlacesPerSearch, setMaxCrawledPlacesPerSearch] = useState([200]);
-  const [skipClosedPlaces, setSkipClosedPlaces] = useState(true);
-  const [website, setWebsite] = useState("withoutWebsite");
-  const [withoutSocials, setWithoutSocials] = useState(false);
-  const [placeMinimumStars, setPlaceMinimumStars] = useState("none");
-  const [reviewsSort, setReviewsSort] = useState("newest");
-  const [reviewsOrigin, setReviewsOrigin] = useState("all");
-  const [scrapeContacts, setScrapeContacts] = useState(true);
-  const [includeWebResults, setIncludeWebResults] = useState(false);
-  const [scrapeReviewsPersonalData, setScrapeReviewsPersonalData] = useState(false);
-  const [maximumLeadsEnrichmentRecords, setMaximumLeadsEnrichmentRecords] = useState(0);
-  const [maxReviews, setMaxReviews] = useState(0);
-  const [maxQuestions, setMaxQuestions] = useState(0);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  // Advanced toggles
-  const [scrapeDirectories, setScrapeDirectories] = useState(false);
-  const [scrapeImageAuthors, setScrapeImageAuthors] = useState(false);
-  const [scrapePlaceDetailPage, setScrapePlaceDetailPage] = useState(false);
-  const [scrapeTableReservationProvider, setScrapeTableReservationProvider] = useState(false);
-
-  // Job state
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
 
   // Validation
-  const isValid = locationQuery.trim() !== "" && searchStringsArray.length > 0;
-
-  // Build payload
-  const payload: SearchPayload = {
-    includeWebResults,
-    language: "en",
-    locationQuery,
-    maxCrawledPlacesPerSearch: maxCrawledPlacesPerSearch[0],
-    maxImages: 0,
-    maximumLeadsEnrichmentRecords,
-    scrapeContacts,
-    scrapeDirectories,
-    scrapeImageAuthors,
-    scrapePlaceDetailPage,
-    scrapeReviewsPersonalData,
-    scrapeTableReservationProvider,
-    searchStringsArray,
-    skipClosedPlaces,
-    website,
-    searchMatching: "all",
-    placeMinimumStars: placeMinimumStars === "none" ? "" : placeMinimumStars,
-    maxQuestions,
-    maxReviews,
-    reviewsSort,
-    reviewsFilterString: "",
-    reviewsOrigin,
-    allPlacesNoSearchAction: "",
-  };
-
-  const payloadString = JSON.stringify(payload, null, 2);
-  const payloadSize = new Blob([payloadString]).size;
+  const isValid = location.trim() !== "" && (businessType !== "" || customBusinessType.trim() !== "");
+  
+  // Get final business type (dropdown or custom)
+  const finalBusinessType = businessType === "custom" ? customBusinessType : businessType;
 
   // Load from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("hunter_search_form");
+    const saved = localStorage.getItem("hunter_minimal_search");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setLocationQuery(parsed.locationQuery || "");
-        setSearchStringsArray(parsed.searchStringsArray || []);
-        setMaxCrawledPlacesPerSearch([parsed.maxCrawledPlacesPerSearch || 200]);
-        setWebsite(parsed.website || "withoutWebsite");
-        setPlaceMinimumStars(parsed.placeMinimumStars || "none");
+        setLocation(parsed.location || "");
+        setBusinessType(parsed.businessType || "");
+        setCustomBusinessType(parsed.customBusinessType || "");
+        setWebsiteRequirement(parsed.websiteRequirement || "any");
+        setLeadCount([parsed.leadCount || 200]);
       } catch (e) {
         console.error("Failed to parse saved form", e);
       }
@@ -152,22 +83,25 @@ export default function AppScrape() {
 
   // Save to localStorage on change
   useEffect(() => {
-    localStorage.setItem("hunter_search_form", JSON.stringify(payload));
-  }, [payloadString]);
+    localStorage.setItem("hunter_minimal_search", JSON.stringify({
+      location,
+      businessType,
+      customBusinessType,
+      websiteRequirement,
+      leadCount: leadCount[0]
+    }));
+  }, [location, businessType, customBusinessType, websiteRequirement, leadCount]);
 
-  // Mock handlers - no real logic, just UI integration hooks
+  // Mock handlers - comment stubs only
   const onRunSearch = () => {
-    // TODO: POST to n8n webhook endpoint with:
-    // - payload (Apify JSON)
-    // - uiFlags: { withoutSocials }
-    // Expected response: { jobId: string, status: string }
-    console.log("onRunSearch called with payload:", payload);
-    console.log("UI flags:", { withoutSocials });
+    // TODO: Integrate with backend
+    // onRunSearch({ location, businessType: finalBusinessType, websiteRequirement, leadCount: leadCount[0] })
+    console.log("onRunSearch", { location, businessType: finalBusinessType, websiteRequirement, leadCount: leadCount[0] });
 
     const mockJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setJobStatus({
       jobId: mockJobId,
-      status: "Running",
+      status: "Queued",
       startedAt: new Date().toLocaleString(),
     });
 
@@ -177,192 +111,120 @@ export default function AppScrape() {
   };
 
   const onRefreshJob = () => {
-    // TODO: Poll n8n/Apify for job status
-    console.log("onRefreshJob called for:", jobStatus?.jobId);
-    toast.info("Job status refreshed");
+    // TODO: Poll job status
+    // onRefreshJob(jobStatus?.jobId)
+    console.log("onRefreshJob", jobStatus?.jobId);
+    if (jobStatus && jobStatus.status === "Queued") {
+      setJobStatus({ ...jobStatus, status: "Running" });
+      toast.info("Job is now running");
+    }
   };
 
   const onViewResults = () => {
-    // TODO: Navigate to /app/results?queryId={jobId}
-    console.log("onViewResults called for:", jobStatus?.jobId);
+    // TODO: Navigate to results
+    // onViewResults(jobId)
+    console.log("onViewResults", jobStatus?.jobId);
     window.location.href = `/app/results?queryId=${jobStatus?.jobId}`;
   };
 
-  // Preset helpers
-  const applyPreset = (preset: string) => {
-    switch (preset) {
-      case "no-website":
-        setWebsite("withoutWebsite");
-        setWithoutSocials(false);
-        toast.success("Preset applied: No Website");
-        break;
-      case "no-socials":
-        setWithoutSocials(true);
-        toast.success("Preset applied: No Socials");
-        break;
-      case "high-rating":
-        setPlaceMinimumStars("4.5");
-        toast.success("Preset applied: High Rating (≥4.5)");
-        break;
-      case "restaurants":
-        setSearchStringsArray(["Restaurant"]);
-        toast.success("Preset applied: Restaurants");
-        break;
-      case "salons":
-        setSearchStringsArray(["Salon"]);
-        toast.success("Preset applied: Salons");
-        break;
-      case "dentists":
-        setSearchStringsArray(["Dentist"]);
-        toast.success("Preset applied: Dentists");
-        break;
-    }
-  };
-
-  const addCategory = (category: string) => {
-    if (category && !searchStringsArray.includes(category)) {
-      setSearchStringsArray([...searchStringsArray, category]);
-      setNewCategory("");
-    }
-  };
-
-  const removeCategory = (category: string) => {
-    setSearchStringsArray(searchStringsArray.filter((c) => c !== category));
+  const onPresetClick = (presetIndex: number) => {
+    // TODO: Apply preset
+    // onPresetClick(presetId)
+    const preset = PRESETS[presetIndex];
+    setLocation(preset.location);
+    setBusinessType(preset.businessType);
+    setCustomBusinessType("");
+    setWebsiteRequirement(preset.websiteReq);
+    setLeadCount([preset.leads]);
+    toast.success("Preset applied", { description: preset.label });
   };
 
   const filteredLocations = SA_LOCATIONS.filter((loc) =>
-    loc.toLowerCase().includes(locationQuery.toLowerCase())
+    loc.toLowerCase().includes(location.toLowerCase())
   );
 
-  const copyPayload = () => {
-    navigator.clipboard.writeText(payloadString);
-    toast.success("Payload copied to clipboard");
-  };
-
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <div className="border-b border-sidebar-border px-6 py-3">
+      <div className="border-b border-border px-6 py-4">
         <h1 className="text-2xl font-bold">New Search</h1>
-        <p className="text-sm text-muted-foreground">Tell Hunter what to find. We'll hunt for businesses with missing web presence so you can pitch them.</p>
+        <p className="text-sm text-muted-foreground">Tell Hunter what to find.</p>
       </div>
 
-      {/* Job Status Bar (after submit) */}
-      {jobStatus && (
-        <div className="border-b border-sidebar-border px-6 py-4 bg-muted/30">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground">Job ID</div>
-                <div className="font-mono text-sm">{jobStatus.jobId.slice(0, 8)}...</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Status</div>
-                <Badge variant={jobStatus.status === "Completed" ? "default" : jobStatus.status === "Running" ? "secondary" : "outline"}>
-                  {jobStatus.status}
-                </Badge>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Started</div>
-                <div className="text-sm">{jobStatus.startedAt}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={onRefreshJob}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-              <Button size="sm" onClick={onViewResults}>
-                View Results
-              </Button>
-            </div>
-          </div>
-          {jobStatus.status === "Running" && (
-            <Progress value={undefined} className="h-1 mt-3" />
-          )}
-          <p className="text-xs text-muted-foreground mt-2">Powered by Apify Google Maps Scraper via n8n</p>
-        </div>
-      )}
-
-      {/* Form - Single Centered Card */}
-      <div className="flex-1 overflow-auto p-8">
+      {/* Main Content - Centered Card */}
+      <div className="flex-1 overflow-auto p-6 md:p-8">
         <div className="max-w-2xl mx-auto">
-          <Card className="p-6 space-y-6">
-            {/* Presets Row */}
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Quick Presets</Label>
+          <Card className="rounded-2xl shadow-md border-border p-8 space-y-8">
+            {/* Job Status (slim, at top of card when active) */}
+            {jobStatus && (
+              <div className="pb-6 border-b border-border">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Job ID: </span>
+                      <span className="font-mono">{jobStatus.jobId.slice(0, 12)}</span>
+                    </div>
+                    <Badge variant={jobStatus.status === "Completed" ? "default" : jobStatus.status === "Running" ? "secondary" : "outline"}>
+                      {jobStatus.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={onRefreshJob}>
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </Button>
+                    <Button size="sm" onClick={onViewResults}>
+                      View Results
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Presets */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Quick presets</Label>
               <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("no-website")}
-                >
-                  No Website
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("no-socials")}
-                >
-                  No Socials
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("high-rating")}
-                >
-                  High Rating (≥4.5)
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("restaurants")}
-                >
-                  Restaurants
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("salons")}
-                >
-                  Salons
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                  onClick={() => applyPreset("dentists")}
-                >
-                  Dentists
-                </Badge>
+                {PRESETS.map((preset, idx) => (
+                  <Badge
+                    key={idx}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors px-3 py-1.5"
+                    onClick={() => onPresetClick(idx)}
+                  >
+                    {preset.label}
+                  </Badge>
+                ))}
               </div>
             </div>
-
-            <Separator />
 
             {/* Location */}
             <div className="space-y-2 relative">
-              <Label htmlFor="location">
+              <Label htmlFor="location" className="text-base font-medium">
                 Location <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
                 <Input
                   id="location"
                   placeholder="e.g., Sandton"
-                  value={locationQuery}
-                  onChange={(e) => setLocationQuery(e.target.value)}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                   onFocus={() => setShowLocationSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
-                  className="pl-9"
+                  className="pl-10 h-12 text-base"
+                  aria-required="true"
                 />
               </div>
               {showLocationSuggestions && filteredLocations.length > 0 && (
-                <Card className="absolute z-10 w-full mt-1 p-2 max-h-48 overflow-auto">
-                  {filteredLocations.slice(0, 8).map((loc) => (
+                <Card className="absolute z-50 w-full mt-1 p-1 max-h-48 overflow-auto bg-popover border-border shadow-lg">
+                  {filteredLocations.map((loc) => (
                     <button
                       key={loc}
-                      className="w-full text-left px-3 py-2 rounded hover:bg-sidebar-accent text-sm"
+                      type="button"
+                      className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm transition-colors"
                       onClick={() => {
-                        setLocationQuery(loc);
+                        setLocation(loc);
                         setShowLocationSuggestions(false);
                       }}
                     >
@@ -371,301 +233,95 @@ export default function AppScrape() {
                   ))}
                 </Card>
               )}
-              {!locationQuery && (
-                <p className="text-xs text-destructive">Location is required</p>
-              )}
+              <p className="text-xs text-muted-foreground">e.g., Sandton</p>
             </div>
 
-            {/* Categories */}
+            {/* Business Type */}
             <div className="space-y-2">
-              <Label>
-                Business Categories <span className="text-destructive">*</span>
+              <Label htmlFor="business-type" className="text-base font-medium">
+                Business type <span className="text-destructive">*</span>
               </Label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {searchStringsArray.map((cat) => (
-                  <Badge key={cat} variant="default" className="gap-1">
-                    {cat}
-                    <X
-                      className="h-3 w-3 cursor-pointer"
-                      onClick={() => removeCategory(cat)}
-                    />
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex gap-2">
+              <Select value={businessType} onValueChange={setBusinessType}>
+                <SelectTrigger id="business-type" className="h-12 text-base" aria-required="true">
+                  <SelectValue placeholder="Pick a type or enter your own" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  {BUSINESS_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom...</SelectItem>
+                </SelectContent>
+              </Select>
+              {businessType === "custom" && (
                 <Input
-                  placeholder="Add custom category..."
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCategory(newCategory);
-                    }
-                  }}
-                  list="categories"
+                  placeholder="Enter custom business type"
+                  value={customBusinessType}
+                  onChange={(e) => setCustomBusinessType(e.target.value)}
+                  className="h-12 text-base mt-2"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => addCategory(newCategory)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              <datalist id="categories">
-                {COMMON_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
-              {searchStringsArray.length === 0 && (
-                <p className="text-xs text-destructive">At least one category is required</p>
               )}
+              <p className="text-xs text-muted-foreground">Pick a type or enter your own</p>
             </div>
 
-            {/* Result Size */}
+            {/* Website Requirement */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Website requirement</Label>
+              <ToggleGroup
+                type="single"
+                value={websiteRequirement}
+                onValueChange={(val) => {
+                  if (val === "with" || val === "without" || val === "any") {
+                    setWebsiteRequirement(val);
+                  }
+                }}
+                className="justify-start gap-2"
+                aria-label="Website requirement filter"
+              >
+                <ToggleGroupItem value="with" className="h-12 px-6 text-base" aria-label="With website">
+                  With website
+                </ToggleGroupItem>
+                <ToggleGroupItem value="without" className="h-12 px-6 text-base" aria-label="Without website">
+                  Without website
+                </ToggleGroupItem>
+                <ToggleGroupItem value="any" className="h-12 px-6 text-base" aria-label="Any">
+                  Any
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
+            {/* Leads to Generate */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Max Results</Label>
-                <span className="text-sm font-medium">{maxCrawledPlacesPerSearch[0]}</span>
+                <Label className="text-base font-medium">Leads to generate</Label>
+                <span className="text-lg font-semibold">{leadCount[0]}</span>
               </div>
               <Slider
-                value={maxCrawledPlacesPerSearch}
-                onValueChange={setMaxCrawledPlacesPerSearch}
-                min={20}
+                value={leadCount}
+                onValueChange={setLeadCount}
+                min={10}
                 max={1000}
-                step={20}
+                step={10}
+                className="py-2"
+                aria-label={`Leads to generate: ${leadCount[0]}`}
               />
-              <p className="text-xs text-muted-foreground">
-                Higher limits may take longer to complete
-              </p>
-            </div>
-
-            <Separator />
-
-            {/* Filters Section */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-sm">Filters</h3>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="skip-closed">Skip closed places</Label>
-                <Switch
-                  id="skip-closed"
-                  checked={skipClosedPlaces}
-                  onCheckedChange={setSkipClosedPlaces}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Website Filter</Label>
-                <Select value={website} onValueChange={setWebsite}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="withWebsite">With Website</SelectItem>
-                    <SelectItem value="withoutWebsite">Without Website</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Socials Filter (experimental)</Label>
-                <Select
-                  value={withoutSocials ? "withoutSocials" : "any"}
-                  onValueChange={(val) => setWithoutSocials(val === "withoutSocials")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any">Any</SelectItem>
-                    <SelectItem value="withoutSocials">Without Socials</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Minimum Rating</Label>
-                <Select value={placeMinimumStars} onValueChange={setPlaceMinimumStars}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="3.5">3.5+</SelectItem>
-                    <SelectItem value="4.0">4.0+</SelectItem>
-                    <SelectItem value="4.5">4.5+</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Reviews Sort</Label>
-                <Select value={reviewsSort} onValueChange={setReviewsSort}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">Newest</SelectItem>
-                    <SelectItem value="mostRelevant">Most Relevant</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Reviews Origin</Label>
-                <Select value={reviewsOrigin} onValueChange={setReviewsOrigin}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="local">Local</SelectItem>
-                    <SelectItem value="tourist">Tourist</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>10</span>
+                <span>1000</span>
               </div>
             </div>
 
-            <Separator />
-
-            {/* Data Collection */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-sm">Data Collection</h3>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="scrape-contacts">Scrape Contacts</Label>
-                <Switch
-                  id="scrape-contacts"
-                  checked={scrapeContacts}
-                  onCheckedChange={setScrapeContacts}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="include-web">Include Web Results</Label>
-                <Switch
-                  id="include-web"
-                  checked={includeWebResults}
-                  onCheckedChange={setIncludeWebResults}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="scrape-reviews">Scrape Reviews Personal Data</Label>
-                <Switch
-                  id="scrape-reviews"
-                  checked={scrapeReviewsPersonalData}
-                  onCheckedChange={setScrapeReviewsPersonalData}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Enrichment Limits */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-sm">Enrichment Limits</h3>
-
-              <div className="space-y-2">
-                <Label htmlFor="max-enrichment">Max Leads Enrichment Records</Label>
-                <Input
-                  id="max-enrichment"
-                  type="number"
-                  min="0"
-                  value={maximumLeadsEnrichmentRecords}
-                  onChange={(e) => setMaximumLeadsEnrichmentRecords(parseInt(e.target.value) || 0)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="max-reviews-count">Max Reviews</Label>
-                <Input
-                  id="max-reviews-count"
-                  type="number"
-                  min="0"
-                  value={maxReviews}
-                  onChange={(e) => setMaxReviews(parseInt(e.target.value) || 0)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="max-questions-count">Max Questions</Label>
-                <Input
-                  id="max-questions-count"
-                  type="number"
-                  min="0"
-                  value={maxQuestions}
-                  onChange={(e) => setMaxQuestions(parseInt(e.target.value) || 0)}
-                />
-              </div>
-            </div>
-
-            {/* Advanced Section */}
-            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between">
-                  <span className="font-semibold text-sm">Advanced Options</span>
-                  <span className="text-xs text-muted-foreground">
-                    {showAdvanced ? "Hide" : "Show"}
-                  </span>
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4 pt-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="scrape-dirs">Scrape Directories</Label>
-                  <Switch
-                    id="scrape-dirs"
-                    checked={scrapeDirectories}
-                    onCheckedChange={setScrapeDirectories}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="scrape-authors">Scrape Image Authors</Label>
-                  <Switch
-                    id="scrape-authors"
-                    checked={scrapeImageAuthors}
-                    onCheckedChange={setScrapeImageAuthors}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="scrape-detail">Scrape Place Detail Page</Label>
-                  <Switch
-                    id="scrape-detail"
-                    checked={scrapePlaceDetailPage}
-                    onCheckedChange={setScrapePlaceDetailPage}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="scrape-reservation">Scrape Table Reservation Provider</Label>
-                  <Switch
-                    id="scrape-reservation"
-                    checked={scrapeTableReservationProvider}
-                    onCheckedChange={setScrapeTableReservationProvider}
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <Separator />
-
-            {/* Action Buttons */}
-            <div className="space-y-2">
-              <Button
-                className="w-full"
-                size="lg"
-                disabled={!isValid}
-                onClick={onRunSearch}
-              >
-                <ArrowUp className="mr-2 h-4 w-4" />
-                Run Search
-              </Button>
-            </div>
+            {/* Run Search Button */}
+            <Button
+              size="lg"
+              className="w-full h-12 text-base font-medium"
+              onClick={onRunSearch}
+              disabled={!isValid}
+              aria-label="Run search"
+            >
+              Run Search
+            </Button>
           </Card>
         </div>
       </div>
