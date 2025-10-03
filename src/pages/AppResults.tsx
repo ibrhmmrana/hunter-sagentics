@@ -642,7 +642,7 @@ export default function AppResults() {
                           </span>
                       </TableCell>
                         <TableCell className="px-4 py-3 hidden lg:table-cell">
-                          <ContactPreview placeId={lead.place_id} onViewContacts={handleViewContacts} />
+                          <ContactPreview placeId={lead.place_id} onViewContacts={() => handleViewContacts(lead.place_id, lead.title)} />
                       </TableCell>
                         <TableCell className="px-4 py-3 hidden sm:table-cell">
                           {isRealWebsite ? (

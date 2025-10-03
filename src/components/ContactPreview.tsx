@@ -16,28 +16,20 @@ type Props = {
 };
 
 export default function ContactPreview({ placeId, onViewContacts }: Props) {
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading } = useQuery<LeadContact[]>({
     queryKey: ['contacts-preview', placeId],
     queryFn: () => previewContactsForPlace(placeId, 2),
     enabled: !!placeId,
     staleTime: 60_000, // 1 minute
-    suspense: false,
     retry: 1, // Only retry once to avoid infinite loops
-    onError: (error) => {
-      console.warn('ContactPreview query error:', error);
-    },
   });
 
-  const { data: totalCount = 0 } = useQuery({
+  const { data: totalCount = 0 } = useQuery<number>({
     queryKey: ['contacts-count', placeId],
     queryFn: () => countContacts(placeId),
     enabled: !!placeId,
     staleTime: 60_000, // 1 minute
-    suspense: false,
     retry: 1, // Only retry once to avoid infinite loops
-    onError: (error) => {
-      console.warn('ContactCount query error:', error);
-    },
   });
 
   const formatContactName = (contact: LeadContact): string => {
