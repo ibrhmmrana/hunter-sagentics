@@ -64,9 +64,12 @@ export function useLeadsRealtime({ onChange, enabled = true }: UseLeadsRealtimeO
             (payload: RealtimePostgresChangesPayload<Lead>) => {
               if (!mounted) return;
 
+              const rowData = (payload.new || payload.old) as Lead;
+              if (!rowData) return;
+
               const change: RealtimeChange = {
                 type: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
-                row: payload.new || payload.old
+                row: rowData
               };
 
               console.log('Realtime lead change:', change);

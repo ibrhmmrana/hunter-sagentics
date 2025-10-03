@@ -74,8 +74,8 @@ export default function AppLists() {
       setCreating(true);
       const newList = await createList(newListName.trim(), newListDescription.trim() || undefined);
       
-      // Optimistically add to list
-      setLists(prev => [newList, ...prev]);
+      // Optimistically add to list with items_count
+      setLists(prev => [{ ...newList, items_count: 0 }, ...prev]);
       
       toast.success(`Created "${newList.name}"`);
       setNewListDialogOpen(false);

@@ -28,16 +28,12 @@ type Props = {
 
 export default function ContactsSheet({ placeId, open, onOpenChange, title }: Props) {
   // Use React Query for data fetching with better error handling
-  const { data: contacts = [], isLoading: loading, error: queryError } = useQuery({
+  const { data: contacts = [], isLoading: loading, error: queryError } = useQuery<LeadContact[]>({
     queryKey: ['contacts', placeId],
     queryFn: () => listContactsForPlace(placeId, 5),
     enabled: !!placeId && open,
     staleTime: 60_000, // 1 minute
-    suspense: false,
     retry: 1, // Only retry once to avoid infinite loops
-    onError: (error) => {
-      console.warn('ContactsSheet query error:', error);
-    },
   });
 
   const error = queryError ? 'Failed to load contacts' : null;

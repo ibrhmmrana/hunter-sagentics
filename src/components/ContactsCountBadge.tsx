@@ -13,16 +13,12 @@ type Props = {
 };
 
 export default function ContactsCountBadge({ placeId, onClick }: Props) {
-  const { data: count = 0, isLoading } = useQuery({
+  const { data: count = 0, isLoading } = useQuery<number>({
     queryKey: ['contacts-count', placeId],
     queryFn: () => countContacts(placeId),
     enabled: !!placeId,
     staleTime: 60_000, // 1 minute
-    suspense: false,
     retry: 1,
-    onError: (error) => {
-      console.warn('ContactsCountBadge query error:', error);
-    },
   });
 
   if (isLoading) {

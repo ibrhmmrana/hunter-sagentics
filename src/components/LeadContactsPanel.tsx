@@ -25,16 +25,12 @@ type Props = {
 
 export default function LeadContactsPanel({ placeId, title, open, onClose }: Props) {
   // Use React Query for data fetching
-  const { data: contacts = [], isLoading: loading, error: queryError } = useQuery({
+  const { data: contacts = [], isLoading: loading, error: queryError } = useQuery<LeadContact[]>({
     queryKey: ['contacts', placeId],
     queryFn: () => listContactsByPlaceId(placeId, 5),
     enabled: !!placeId && open,
     staleTime: 60_000, // 1 minute
-    suspense: false,
     retry: 1,
-    onError: (error) => {
-      console.warn('LeadContactsPanel query error:', error);
-    },
   });
 
   const error = queryError ? 'Failed to load contacts' : null;

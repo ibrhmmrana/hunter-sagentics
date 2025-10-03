@@ -149,9 +149,10 @@ export async function getListLeads(
     throw new Error(`Failed to fetch list leads: ${error.message}`);
   }
   
-  const leads: Lead[] = data
+  const leads: Lead[] = (data
     ?.map(item => item.leads)
-    .filter(Boolean) ?? [];
+    .flat()
+    .filter(Boolean) ?? []) as Lead[];
     
   return {
     rows: leads,
