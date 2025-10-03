@@ -4,9 +4,9 @@
  */
 
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, X } from "lucide-react";
+import { Search, X, Filter, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ResultsFiltersProps {
   totalResults: number;
@@ -25,6 +26,8 @@ interface ResultsFiltersProps {
 export default function ResultsFilters({ totalResults }: ResultsFiltersProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isMobile = useIsMobile();
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   
   const q = searchParams.get("q") || "";
   const sort = searchParams.get("sort") || "recent";
@@ -84,6 +87,156 @@ export default function ResultsFilters({ totalResults }: ResultsFiltersProps) {
 
   const hasActiveFilters = q || sort !== "recent" || pageSize !== 20 || website !== "any" || socials !== "any" || contacted !== "any";
 
+  if (isMobile) {
+    return (
+      <div className="border-b border-border px-4 py-3">
+        <div className="flex flex-col gap-3">
+          {/* Search Bar - Full Width */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search businesses..."
+              value={q}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9 w-full"
+              aria-label="Search leads"
+            />
+          </div>
+
+          {/* Filter Toggle Button */}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filters
+              <ChevronDown className={`h-4 w-4 transition-transform ${showMobileFilters ? 'rotate-180' : ''}`} />
+            </Button>
+
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={clearFilters}
+                className="text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Collapsible Filters */}
+          {showMobileFilters && (
+            <div className="space-y-3 pt-2 border-t">
+              {/* Sort and Page Size */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="sort-select-mobile" className="text-xs font-medium text-muted-foreground">
+                    Sort by
+                  </Label>
+                  <Select value={sort} onValueChange={handleSortChange}>
+                    <SelectTrigger className="h-9" id="sort-select-mobile">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recent">Most recent</SelectItem>
+                      <SelectItem value="rating_desc">Rating ↓</SelectItem>
+                      <SelectItem value="rating_asc">Rating ↑</SelectItem>
+                      <SelectItem value="reviews_desc">Reviews ↓</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="pagesize-select-mobile" className="text-xs font-medium text-muted-foreground">
+                    Show
+                  </Label>
+                  <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="h-9" id="pagesize-select-mobile">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Filter Options */}
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <Label htmlFor="website-select-mobile" className="text-xs font-medium text-muted-foreground">
+                    Website
+                  </Label>
+                  <Select value={website} onValueChange={handleWebsiteChange}>
+                    <SelectTrigger className="h-9" id="website-select-mobile">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any</SelectItem>
+                      <SelectItem value="none">No website</SelectItem>
+                      <SelectItem value="has">Has website</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="socials-select-mobile" className="text-xs font-medium text-muted-foreground">
+                    Socials
+                  </Label>
+                  <Select value={socials} onValueChange={handleSocialsChange}>
+                    <SelectTrigger className="h-9" id="socials-select-mobile">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any</SelectItem>
+                      <SelectItem value="none">No socials</SelectItem>
+                      <SelectItem value="has">Has socials</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="contacted-select-mobile" className="text-xs font-medium text-muted-foreground">
+                    Contacted
+                  </Label>
+                  <Select value={contacted} onValueChange={handleContactedChange}>
+                    <SelectTrigger className="h-9" id="contacted-select-mobile">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any</SelectItem>
+                      <SelectItem value="no">Not contacted</SelectItem>
+                      <SelectItem value="yes">Contacted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Results count */}
+          <div className="text-sm text-muted-foreground text-center">
+            {totalResults === 0 ? (
+              "No leads found"
+            ) : totalResults === 1 ? (
+              "1 lead found"
+            ) : (
+              `${totalResults.toLocaleString()} leads found`
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop layout (unchanged)
   return (
     <div className="border-b border-border px-6 py-4">
       <div className="flex flex-col gap-4">

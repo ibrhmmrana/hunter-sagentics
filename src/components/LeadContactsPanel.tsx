@@ -72,7 +72,7 @@ export default function LeadContactsPanel({ placeId, title, open, onClose }: Pro
 
   return (
     <Sheet open={open} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:w-[420px] sm:max-w-[420px] flex flex-col" side="right">
+      <SheetContent className="w-full sm:w-[420px] sm:max-w-[420px] flex flex-col rounded-lg" side="right">
         <SheetHeader className="pb-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-lg">

@@ -46,7 +46,7 @@ export default function LeadImagePreview({
         {trigger}
       </div>
       
-      <DialogContent className="max-w-[min(90vw,920px)] max-h-[80vh] p-0">
+      <DialogContent className="max-w-[min(90vw,920px)] max-h-[80vh] p-0 rounded-lg">
         <DialogHeader className="p-6 pb-4">
           <DialogTitle className="flex items-center justify-between">
             <span className="text-lg font-semibold truncate pr-4">

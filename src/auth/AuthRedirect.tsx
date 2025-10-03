@@ -21,8 +21,8 @@ export default function AuthRedirect({ children }: Props) {
   }
 
   if (user) {
-    // User is authenticated, redirect to main app
-    return <Navigate to="/app/results" replace />;
+    // User is authenticated, redirect to dashboard (home)
+    return <Navigate to="/app/home" replace />;
   }
 
   return <>{children}</>;

@@ -1,6 +1,7 @@
 import { Home, MessageSquare, Search, FileText, FolderOpen, Settings, LogOut } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Sidebar,
   SidebarContent,
@@ -37,9 +38,11 @@ const mainNavItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, setOpenMobile } = useSidebar();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
+  const isMobile = useIsMobile();
   const creditsUsed = 310;
   const creditsTotal = 400;
   const creditsPercent = (creditsUsed / creditsTotal) * 100;
@@ -54,6 +57,21 @@ export function AppSidebar() {
       // Still navigate to login even if signOut fails
       navigate("/login", { replace: true });
     }
+  };
+
+  const handleNavigation = (url: string) => {
+    navigate(url);
+    // Close mobile sidebar when navigating
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  const isActiveRoute = (url: string) => {
+    if (url === "/app/home") {
+      return location.pathname === "/app/home" || location.pathname === "/app";
+    }
+    return location.pathname.startsWith(url);
   };
 
   // Get user initials and display name
@@ -71,21 +89,21 @@ export function AppSidebar() {
         {/* Logo & Workspace Switcher */}
         <div className="border-b border-sidebar-border p-4">
           <div className="flex items-center gap-3 mb-3">
-            {!isCollapsed && (
+            {(!isCollapsed || isMobile) && (
               <img 
                 src={hunterLogoLight} 
                 alt="Hunter — by Sagentics" 
                 className="h-12 dark:hidden"
               />
             )}
-            {!isCollapsed && (
+            {(!isCollapsed || isMobile) && (
               <img 
                 src={hunterLogoDark} 
                 alt="Hunter — by Sagentics" 
                 className="h-12 hidden dark:block"
               />
             )}
-            {isCollapsed && (
+            {isCollapsed && !isMobile && (
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">H</span>
               </div>
@@ -100,7 +118,7 @@ export function AppSidebar() {
                       {userInitials}
                     </AvatarFallback>
                   </Avatar>
-                  {!isCollapsed && (
+                  {(!isCollapsed || isMobile) && (
                     <div className="flex-1 min-w-0 text-left">
                       <p className="text-sm font-medium truncate">{userDisplayName}</p>
                     </div>
@@ -110,7 +128,7 @@ export function AppSidebar() {
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/app/settings")}>
+                <DropdownMenuItem onClick={() => handleNavigation("/app/settings")}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </DropdownMenuItem>
@@ -131,19 +149,16 @@ export function AppSidebar() {
               <SidebarMenu>
                 {mainNavItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        end
-                        className={({ isActive }) =>
-                          isActive
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                            : "hover:bg-sidebar-accent/50"
-                        }
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {!isCollapsed && <span>{item.title}</span>}
-                      </NavLink>
+                    <SidebarMenuButton
+                      onClick={() => handleNavigation(item.url)}
+                      className={`w-full justify-start ${
+                        isActiveRoute(item.url)
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                          : "hover:bg-sidebar-accent/50"
+                      }`}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {(!isCollapsed || isMobile) && <span>{item.title}</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -153,11 +168,11 @@ export function AppSidebar() {
         </SidebarContent>
 
         {/* Footer with credits */}
-        {!isCollapsed && (
+        {(!isCollapsed || isMobile) && (
           <SidebarFooter className="p-4">
             <div 
               className="space-y-2 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => navigate("/app/settings?section=credits")}
+              onClick={() => handleNavigation("/app/settings?section=credits")}
             >
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Credits remaining</span>

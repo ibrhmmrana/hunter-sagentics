@@ -34,7 +34,7 @@ export default function Signup() {
 
   const onAuthWithGoogle = () => {
     console.log("Google auth triggered");
-    navigate("/app/results");
+    navigate("/app/home");
   };
 
   const onCreateAccount = async () => {
@@ -65,7 +65,7 @@ export default function Signup() {
       
       // Navigate after a delay to show success message
       setTimeout(() => {
-        navigate("/app/results");
+        navigate("/app/home");
       }, 2000);
     } catch (err: any) {
       console.error("Signup error:", err);

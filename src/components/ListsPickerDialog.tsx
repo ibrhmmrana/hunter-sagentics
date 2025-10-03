@@ -60,7 +60,7 @@ export function ListsPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md rounded-lg">
         <DialogHeader>
           <DialogTitle>Add to List</DialogTitle>
           <DialogDescription>

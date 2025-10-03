@@ -121,7 +121,7 @@ export default function AddToListDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md rounded-lg">
         <DialogHeader>
           <DialogTitle>Add to List</DialogTitle>
           <DialogDescription>

@@ -894,43 +894,82 @@ export default function AppResults() {
       {/* Selection Footer */}
       {selectedLeads.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-lg z-50">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+          <div className="px-4 py-3">
+            {/* Mobile Layout */}
+            <div className="md:hidden">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-medium">
-                  {selectedLeads.size} lead{selectedLeads.size !== 1 ? 's' : ''} selected
+                  {selectedLeads.size} selected
                 </span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearSelection}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground h-8 px-2"
                 >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                  <Button
+              <div className="flex gap-2">
+                <Button
                   onClick={handleBulkMarkContacted}
-                    variant="outline"
-                  className="border-green-200 text-green-800 hover:bg-green-50"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-green-200 text-green-800 hover:bg-green-50 h-9"
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Contacted
+                </Button>
+                <Button
+                  onClick={() => setAddToListDialogOpen(true)}
+                  size="sm"
+                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 h-9"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add to List
+                </Button>
+              </div>
+            </div>
+
+            {/* Desktop Layout */}
+            <div className="hidden md:block">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium">
+                    {selectedLeads.size} lead{selectedLeads.size !== 1 ? 's' : ''} selected
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelection}
+                    className="text-muted-foreground hover:text-foreground"
                   >
-                  <Check className="h-4 w-4 mr-2" />
-                  Mark as Contacted
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={handleBulkMarkContacted}
+                    variant="outline"
+                    className="border-green-200 text-green-800 hover:bg-green-50"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Mark as Contacted
                   </Button>
                   <Button
-                  onClick={() => setAddToListDialogOpen(true)}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add to List
+                    onClick={() => setAddToListDialogOpen(true)}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add to List
                   </Button>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Add to List Dialog */}
       <AddToListDialog
