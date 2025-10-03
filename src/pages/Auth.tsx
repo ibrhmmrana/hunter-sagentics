@@ -13,7 +13,7 @@ const AuthCollage = () => {
     { color: "bg-pink-400", delay: "0.2s" },
     { color: "bg-green-400", delay: "0.3s" },
     { color: "bg-yellow-300", delay: "0.4s" },
-    { color: "bg-blue-500", delay: "0.5s" },
+    { color: "bg-primary", delay: "0.5s" },
     { color: "bg-indigo-600", delay: "0.6s" },
     { color: "bg-red-400", delay: "0.7s" },
   ];

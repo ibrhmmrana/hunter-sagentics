@@ -1,9 +1,19 @@
-import { useState, useEffect } from "react";
-import { FolderOpen, Plus, Download, Trash2, Users, BarChart3, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+/**
+ * Lists index page - displays all user's lists with counts
+ */
+
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, MoreVertical, Trash2, Eye, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -11,170 +21,255 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { SavedList } from "@/components/ListsPickerDialog";
-import { toast } from "sonner";
-
-interface ListDetail extends SavedList {
-  leads?: any[];
-  stats?: {
-    withoutWebsite: number;
-    withoutSocials: number;
-    avgRating: number;
-    topCategories: string[];
-  };
-}
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { listLists, createList, deleteList } from '@/data/lists';
+import { ListWithCount } from '@/types/list';
 
 export default function AppLists() {
-  const [lists, setLists] = useState<ListDetail[]>([]);
-  const [selectedList, setSelectedList] = useState<ListDetail | null>(null);
+  const navigate = useNavigate();
+  const [lists, setLists] = useState<ListWithCount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // New list dialog state
   const [newListDialogOpen, setNewListDialogOpen] = useState(false);
-  const [newListName, setNewListName] = useState("");
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [newListDescription, setNewListDescription] = useState('');
+  const [creating, setCreating] = useState(false);
+  
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [listToDelete, setListToDelete] = useState<ListWithCount | null>(null);
 
-  // Load lists from localStorage
+  // Load lists on mount
   useEffect(() => {
-    const saved = localStorage.getItem("hunter_lists");
-    if (saved) {
-      try {
-        setLists(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse lists", e);
-      }
-    }
+    loadLists();
   }, []);
 
-  // Save to localStorage
-  useEffect(() => {
-    localStorage.setItem("hunter_lists", JSON.stringify(lists));
-  }, [lists]);
+  const loadLists = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await listLists();
+      setLists(data);
+    } catch (err) {
+      console.error('Failed to load lists:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load lists');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const createList = () => {
-    if (newListName.trim()) {
-      const newList: ListDetail = {
-        id: `list-${Date.now()}`,
-        name: newListName.trim(),
-        count: 0,
-        lastUpdated: new Date().toISOString(),
-        leads: [],
-        stats: {
-          withoutWebsite: 0,
-          withoutSocials: 0,
-          avgRating: 0,
-          topCategories: [],
-        },
-      };
-      setLists([...lists, newList]);
-      setNewListName("");
+  const handleCreateList = async () => {
+    if (!newListName.trim()) {
+      toast.error('Please enter a list name');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const newList = await createList(newListName.trim(), newListDescription.trim() || undefined);
+      
+      // Optimistically add to list
+      setLists(prev => [newList, ...prev]);
+      
+      toast.success(`Created "${newList.name}"`);
       setNewListDialogOpen(false);
-      toast.success(`Created list '${newList.name}'`);
+      setNewListName('');
+      setNewListDescription('');
+    } catch (err) {
+      console.error('Failed to create list:', err);
+      toast.error('Failed to create list');
+    } finally {
+      setCreating(false);
     }
   };
 
-  const deleteList = (listId: string) => {
-    const list = lists.find((l) => l.id === listId);
-    if (confirm(`Delete list '${list?.name}'? This cannot be undone.`)) {
-      setLists(lists.filter((l) => l.id !== listId));
-      setDetailDialogOpen(false);
-      toast.success("List deleted");
+  const handleDeleteList = async () => {
+    if (!listToDelete) return;
+
+    try {
+      await deleteList(listToDelete.id);
+      
+      // Optimistically remove from list
+      setLists(prev => prev.filter(list => list.id !== listToDelete.id));
+      
+      toast.success(`Deleted "${listToDelete.name}"`);
+      setDeleteDialogOpen(false);
+      setListToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete list:', err);
+      toast.error('Failed to delete list');
     }
   };
 
-  const exportList = (listId: string) => {
-    // TODO: export list to CSV
-    console.log("exportList", listId);
-    toast.success("Export started — we'll prepare your CSV");
+  const openDeleteDialog = (list: ListWithCount) => {
+    setListToDelete(list);
+    setDeleteDialogOpen(true);
   };
 
-  const openListDetail = (list: ListDetail) => {
-    setSelectedList(list);
-    setDetailDialogOpen(true);
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return 'Today';
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return date.toLocaleDateString();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <div className="flex-1 px-6 py-8">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold">Lists</h1>
+                <p className="text-muted-foreground mt-2">Organize your leads into lists</p>
+              </div>
+              <Button disabled>
+                <Plus className="mr-2 h-4 w-4" />
+                New List
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-6 bg-muted rounded w-3/4" />
+                    <div className="h-4 bg-muted rounded w-1/2" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-4 bg-muted rounded w-1/4" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <h2 className="text-xl font-semibold mb-4">Failed to load lists</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={loadLists}>
+            Try Again
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="border-b border-sidebar-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Lists</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Organize and manage your saved leads
-            </p>
-          </div>
-          <Button onClick={() => setNewListDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New List
-          </Button>
-        </div>
-      </div>
-
-      {/* Lists Grid */}
-      <div className="flex-1 p-6">
-        {lists.length === 0 ? (
-          <Card className="p-12 text-center max-w-md mx-auto">
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                <FolderOpen className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold">No lists yet</h3>
-              <p className="text-muted-foreground">
-                You haven't saved any lists yet. Select leads in Results → Add to List.
-              </p>
-              <Button onClick={() => setNewListDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Your First List
-              </Button>
+      <div className="flex-1 px-6 py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold">Lists</h1>
+              <p className="text-muted-foreground mt-2">Organize your leads into lists</p>
             </div>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {lists.map((list) => (
-              <Card
-                key={list.id}
-                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => openListDetail(list)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <FolderOpen className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{list.name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Updated {new Date(list.lastUpdated).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{list.count} leads</Badge>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      exportList(list.id);
-                    }}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
+            <Button onClick={() => setNewListDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New List
+            </Button>
           </div>
-        )}
+
+          {/* Lists Grid */}
+          {lists.length === 0 ? (
+            <Card className="p-12 text-center">
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                  <Plus className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold">No lists yet</h3>
+                <p className="text-muted-foreground">
+                  Create your first list to start organizing your leads
+                </p>
+                <Button onClick={() => setNewListDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create First List
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {lists.map((list) => (
+                <Card 
+                  key={list.id} 
+                  className="group hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => navigate(`/app/lists/${list.id}`)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg truncate">{list.name}</CardTitle>
+                        {list.description && (
+                          <CardDescription className="mt-1 line-clamp-2">
+                            {list.description}
+                          </CardDescription>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/app/lists/${list.id}`)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Open
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteDialog(list);
+                            }}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary" className="text-xs">
+                        {list.items_count} lead{list.items_count !== 1 ? 's' : ''}
+                      </Badge>
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <Calendar className="mr-1 h-3 w-3" />
+                        {formatDate(list.created_at)}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* New List Dialog */}
@@ -183,137 +278,66 @@ export default function AppLists() {
           <DialogHeader>
             <DialogTitle>Create New List</DialogTitle>
             <DialogDescription>
-              Give your list a descriptive name to organize your leads.
+              Create a new list to organize your leads
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Input
-              placeholder="e.g., Sandton Restaurants"
-              value={newListName}
-              onChange={(e) => setNewListName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") createList();
-              }}
-              autoFocus
-            />
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="list-name">List Name</Label>
+              <Input
+                id="list-name"
+                placeholder="Enter list name"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="list-description">Description (Optional)</Label>
+              <Textarea
+                id="list-description"
+                placeholder="Enter description"
+                value={newListDescription}
+                onChange={(e) => setNewListDescription(e.target.value)}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewListDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={createList} disabled={!newListName.trim()}>
-              Create List
+            <Button onClick={handleCreateList} disabled={creating || !newListName.trim()}>
+              {creating ? 'Creating...' : 'Create List'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* List Detail Dialog */}
-      {selectedList && (
-        <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col p-0">
-            <DialogHeader className="px-6 py-4 border-b">
-              <div className="flex items-center justify-between">
-                <div>
-                  <DialogTitle className="text-xl">{selectedList.name}</DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {selectedList.count} leads • Updated{" "}
-                    {new Date(selectedList.lastUpdated).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportList(selectedList.id)}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export CSV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => deleteList(selectedList.id)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <div className="flex-1 overflow-auto">
-              {/* Stats Row */}
-              {selectedList.stats && selectedList.count > 0 && (
-                <div className="px-6 py-4 bg-muted/30 border-b">
-                  <div className="grid grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Without Website</p>
-                      <p className="text-lg font-semibold">
-                        {Math.round((selectedList.stats.withoutWebsite / selectedList.count) * 100)}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Without Socials</p>
-                      <p className="text-lg font-semibold">
-                        {Math.round((selectedList.stats.withoutSocials / selectedList.count) * 100)}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Avg Rating</p>
-                      <p className="text-lg font-semibold">{selectedList.stats.avgRating.toFixed(1)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Top Categories</p>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedList.stats.topCategories.slice(0, 2).map((cat) => (
-                          <Badge key={cat} variant="secondary" className="text-xs">
-                            {cat}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Leads Table */}
-              <div className="px-6 py-4">
-                {selectedList.count === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      No leads in this list yet. Add leads from Results.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Business</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>City</TableHead>
-                          <TableHead>Rating</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {/* Mock empty rows */}
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                            Leads data will appear here
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete List</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{listToDelete?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteList}
+              disabled={!listToDelete}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

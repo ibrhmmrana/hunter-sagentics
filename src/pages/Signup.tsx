@@ -1,11 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/auth/AuthProvider";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 import loginBackground from "@/assets/login-background.jpg";
 import googleLogo from "@/assets/google-logo.png";
+
+const signupSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 export default function Signup() {
   const [firstName, setFirstName] = useState("");
@@ -13,16 +26,53 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const onAuthWithGoogle = () => {
     console.log("Google auth triggered");
-    navigate("/app/home");
+    navigate("/app/results");
   };
 
-  const onCreateAccount = () => {
-    console.log("Create account:", email);
-    navigate("/app/home");
+  const onCreateAccount = async () => {
+    try {
+      setError("");
+      setSuccess("");
+      setLoading(true);
+
+      // Validate form
+      const result = signupSchema.safeParse({
+        firstName,
+        lastName,
+        email,
+        password,
+        confirmPassword,
+      });
+
+      if (!result.success) {
+        setError(result.error.errors[0].message);
+        return;
+      }
+
+      // Sign up with Supabase
+      await signUp(email, password, { firstName, lastName });
+      
+      // Show success message or navigate
+      setSuccess("Account created successfully! Please check your email to confirm your account.");
+      
+      // Navigate after a delay to show success message
+      setTimeout(() => {
+        navigate("/app/results");
+      }, 2000);
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "Failed to create account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,15 +152,24 @@ export default function Signup() {
               placeholder="Confirm password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onCreateAccount()}
               className="h-12 rounded-full bg-gray-900/50 border-gray-700 text-gray-100 placeholder:text-gray-500"
             />
+            
+            {error && (
+              <p className="text-sm text-red-400 text-center">{error}</p>
+            )}
+            {success && (
+              <p className="text-sm text-green-400 text-center">{success}</p>
+            )}
             
             <Button
               className="w-full h-12 rounded-full text-white"
               style={{ backgroundColor: "#1E4E46" }}
               onClick={onCreateAccount}
+              disabled={loading}
             >
-              Create account
+              {loading ? "Creating account..." : "Create account"}
             </Button>
 
             <div className="space-y-2">

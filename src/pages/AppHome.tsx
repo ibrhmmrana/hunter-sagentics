@@ -28,7 +28,7 @@ export default function AppHome() {
   const navigate = useNavigate();
 
   // onStartNewSearch - navigate to scrape page
-  const onStartNewSearch = () => navigate("/app/scrape");
+  const onStartNewSearch = () => navigate("/app/businesses");
   
   // onOpenResults - navigate to results page
   const onOpenResults = () => navigate("/app/results");
@@ -39,7 +39,7 @@ export default function AppHome() {
   // onPresetClick - navigate to scrape with prefilled state (stubbed)
   const onPresetClick = (preset: typeof quickPresets[0]) => {
     console.log("Preset clicked:", preset);
-    navigate("/app/scrape");
+    navigate("/app/businesses");
   };
 
   return (

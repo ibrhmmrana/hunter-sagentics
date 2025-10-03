@@ -1,30 +1,33 @@
-import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+/**
+ * AppResults page - displays leads in table and card views
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
-  Search,
-  X,
   Plus,
-  Download,
-  Check,
-  MoreHorizontal,
+  Search as SearchIcon, 
   Star,
-  ExternalLink,
-  Copy,
+  Phone, 
+  Globe, 
   ChevronLeft,
   ChevronRight,
-  Filter,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  LayoutGrid,
+  Table as TableIcon,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Twitter,
+  Youtube,
+  Music,
+  Pin,
+  MessageSquare,
+  Check,
+  X
+} from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -32,649 +35,909 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { MOCK_LEADS, Lead } from "@/data/mockLeads";
-import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
-import { ListsPickerDialog, SavedList } from "@/components/ListsPickerDialog";
-import { toast } from "sonner";
+} from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { listLeads, ListLeadsResult, updateLeadContacted } from '@/data/leads';
+import { Lead } from '@/types/lead';
+import { formatRating, getHostname, isMaps } from '@/lib/utils';
+import TimeAgo from '@/components/TimeAgo';
+import LeadCard from '@/components/LeadCard';
+import LeadImagePreview from '@/components/LeadImagePreview';
+import LeadLogo from '@/components/LeadLogo';
+import LeadDetailsDrawer from '@/components/LeadDetailsDrawer';
+import ContactPreview from '@/components/ContactPreview';
+import ContactsSheet from '@/components/ContactsSheet';
+import LeadContactsPanel from '@/components/LeadContactsPanel';
+import AddToListDialog from '@/components/AddToListDialog';
+import ResultsFilters from '@/components/ResultsFilters';
+import { toast } from 'sonner';
+import { useLeadsRealtime } from '@/hooks/useLeadsRealtime';
 
 export default function AppResults() {
   const [searchParams] = useSearchParams();
-  const queryId = searchParams.get("queryId");
+  
+  // Parse URL parameters
+  const q = searchParams.get("q") || undefined;
+  const sort = (searchParams.get("sort") as "recent" | "rating_desc" | "rating_asc" | "reviews_desc") || "recent";
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const pageSize = parseInt(searchParams.get("pageSize") || "20");
+  const website = (searchParams.get("website") as "any" | "none" | "has") || "any";
+  const socials = (searchParams.get("socials") as "any" | "none" | "has") || "any";
+  const contacted = (searchParams.get("contacted") as "any" | "no" | "yes") || "any";
+  // Force cards view - table view is hidden for now
+  const view: "cards" | "table" = "cards";
 
-  // Filters
-  const [searchText, setSearchText] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
-  const [minRating, setMinRating] = useState("none");
-  const [minReviews, setMinReviews] = useState("");
-  const [maxReviews, setMaxReviews] = useState("");
-  const [websiteFilter, setWebsiteFilter] = useState<"any" | "yes" | "no">("no");
-  const [socialsFilter, setSocialsFilter] = useState<"any" | "no">("any");
-  const [openNow, setOpenNow] = useState(false);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  // State
+  const [results, setResults] = useState<ListLeadsResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  const [contactsSheetOpen, setContactsSheetOpen] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string>("");
+  const [selectedBusinessTitle, setSelectedBusinessTitle] = useState<string>("");
+  const [contactsPanelOpen, setContactsPanelOpen] = useState(false);
+  const [contactsPanelPlaceId, setContactsPanelPlaceId] = useState<string>("");
+  const [contactsPanelTitle, setContactsPanelTitle] = useState<string>("");
 
-  // Selection & UI state
+  // Selection state
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [listsDialogOpen, setListsDialogOpen] = useState(false);
+  const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  // Helper function to open contacts panel
+  const handleViewContacts = (placeId: string, title: string) => {
+    setContactsPanelPlaceId(placeId);
+    setContactsPanelTitle(title);
+    setContactsPanelOpen(true);
+  };
 
-  // Mock lists (in real app, load from localStorage or Supabase)
-  const [savedLists, setSavedLists] = useState<SavedList[]>([
-    { id: "list-1", name: "Sandton Prospects", count: 24, lastUpdated: "2024-01-15" },
-    { id: "list-2", name: "High Value Leads", count: 12, lastUpdated: "2024-01-14" },
-  ]);
-
-  // Get unique values for filters
-  const allCategories = Array.from(new Set(MOCK_LEADS.map((l) => l.category)));
-  const allCities = Array.from(new Set(MOCK_LEADS.map((l) => l.city)));
-
-  // Filter leads
-  const filteredLeads = useMemo(() => {
-    return MOCK_LEADS.filter((lead) => {
-      // Text search
-      if (
-        searchText &&
-        !lead.title.toLowerCase().includes(searchText.toLowerCase()) &&
-        !lead.category.toLowerCase().includes(searchText.toLowerCase()) &&
-        !lead.city.toLowerCase().includes(searchText.toLowerCase())
-      ) {
-        return false;
+  // Selection handlers
+  const toggleLeadSelection = (placeId: string) => {
+    setSelectedLeads(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(placeId)) {
+        newSet.delete(placeId);
+    } else {
+        newSet.add(placeId);
       }
-
-      // Category
-      if (selectedCategories.length > 0 && !selectedCategories.includes(lead.category)) {
-        return false;
-      }
-
-      // City
-      if (selectedCities.length > 0 && !selectedCities.includes(lead.city)) {
-        return false;
-      }
-
-      // Rating
-      if (minRating && minRating !== "none" && (!lead.rating || lead.rating < parseFloat(minRating))) {
-        return false;
-      }
-
-      // Reviews range
-      if (minReviews && lead.reviewsCount < parseInt(minReviews)) {
-        return false;
-      }
-      if (maxReviews && lead.reviewsCount > parseInt(maxReviews)) {
-        return false;
-      }
-
-      // Website filter
-      if (websiteFilter === "yes" && !lead.website) return false;
-      if (websiteFilter === "no" && lead.website) return false;
-
-      // Socials filter (UI-only, check if any social present)
-      const hasSocials = !!(lead.facebook || lead.instagram || lead.twitter || lead.linkedin || lead.tiktok);
-      if (socialsFilter === "no" && hasSocials) return false;
-
-      // Open now
-      if (openNow && !lead.openNow) return false;
-
-      // Verified only
-      if (verifiedOnly && !lead.verified) return false;
-
-      return true;
+      return newSet;
     });
-  }, [
-    searchText,
-    selectedCategories,
-    selectedCities,
-    minRating,
-    minReviews,
-    maxReviews,
-    websiteFilter,
-    socialsFilter,
-    openNow,
-    verifiedOnly,
-  ]);
-
-  // Paginate
-  const totalPages = Math.ceil(filteredLeads.length / pageSize);
-  const paginatedLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize);
-
-  // Handlers
-  const toggleSelectLead = (leadId: string) => {
-    const newSet = new Set(selectedLeads);
-    if (newSet.has(leadId)) {
-      newSet.delete(leadId);
-    } else {
-      newSet.add(leadId);
-    }
-    setSelectedLeads(newSet);
   };
 
-  const toggleSelectAll = () => {
-    if (selectedLeads.size === paginatedLeads.length) {
-      setSelectedLeads(new Set());
-    } else {
-      setSelectedLeads(new Set(paginatedLeads.map((l) => l.id)));
-    }
+  const selectAllLeads = () => {
+    if (!results) return;
+    setSelectedLeads(new Set(results.rows.map(lead => lead.place_id)));
   };
 
-  const resetFilters = () => {
-    setSearchText("");
-    setSelectedCategories([]);
-    setSelectedCities([]);
-    setMinRating("none");
-    setMinReviews("");
-    setMaxReviews("");
-    setWebsiteFilter("any");
-    setSocialsFilter("any");
-    setOpenNow(false);
-    setVerifiedOnly(false);
-  };
-
-  const openLeadDrawer = (lead: Lead) => {
-    setSelectedLead(lead);
-    setDrawerOpen(true);
-  };
-
-  // Mock integration hooks (will be backed by Supabase later)
-  const onFetchResults = () => {
-    // TODO: fetch from Supabase tables: queries, leads
-    console.log("onFetchResults", { queryId, filters: {}, pagination: { page, pageSize } });
-  };
-
-  const onAddToList = (leadIds: string[], listId: string) => {
-    // TODO: insert into Supabase list_items table
-    console.log("onAddToList", { leadIds, listId });
-  };
-
-  const onCreateList = (name: string) => {
-    // TODO: insert into Supabase lists table
-    const newList: SavedList = {
-      id: `list-${Date.now()}`,
-      name,
-      count: selectedLeads.size,
-      lastUpdated: new Date().toISOString(),
-    };
-    setSavedLists([...savedLists, newList]);
-    console.log("onCreateList", { name });
-  };
-
-  const onExportCSV = () => {
-    // TODO: generate CSV from selected leads or all filtered leads
-    console.log("onExportCSV", { leadIds: Array.from(selectedLeads) });
-    toast.success("Export started — we'll prepare your CSV");
-  };
-
-  const onMarkContacted = () => {
-    // TODO: update activities table
-    console.log("onMarkContacted", { leadIds: Array.from(selectedLeads) });
-    toast.success("Marked as contacted");
+  const clearSelection = () => {
     setSelectedLeads(new Set());
   };
 
-  const onAssignOwner = () => {
-    // TODO: assign owner
-    console.log("onAssignOwner", { leadIds: Array.from(selectedLeads) });
-    toast.success("Owner assigned");
+  const handleAddToListSuccess = () => {
+    clearSelection();
+    // Optionally refetch to show updated data
+    refetchLeads();
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+  // Handle contacted status toggle
+  const handleToggleContacted = async (placeId: string, contacted: boolean) => {
+    try {
+      await updateLeadContacted(placeId, contacted);
+      
+      // Optimistically update local state
+      setResults(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          rows: prev.rows.map(lead => 
+            lead.place_id === placeId 
+              ? { ...lead, contacted } 
+              : lead
+          )
+        };
+      });
+      
+      toast.success(contacted ? 'Marked as contacted' : 'Marked as not contacted');
+    } catch (error) {
+      console.error('Failed to update contacted status:', error);
+      toast.error('Failed to update contacted status');
+    }
   };
 
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
+  // Handle bulk mark as contacted
+  const handleBulkMarkContacted = async () => {
+    try {
+      const placeIds = Array.from(selectedLeads);
+      
+      // Update all selected leads
+      await Promise.all(
+        placeIds.map(placeId => updateLeadContacted(placeId, true))
+      );
+      
+      // Optimistically update local state
+      setResults(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          rows: prev.rows.map(lead => 
+            selectedLeads.has(lead.place_id) 
+              ? { ...lead, contacted: true } 
+              : lead
+          )
+        };
+      });
+      
+      toast.success(`${placeIds.length} lead${placeIds.length !== 1 ? 's' : ''} marked as contacted`);
+      clearSelection();
+    } catch (error) {
+      console.error('Failed to bulk mark as contacted:', error);
+      toast.error('Failed to mark leads as contacted');
+    }
   };
 
-  const toggleCity = (city: string) => {
-    setSelectedCities((prev) =>
-      prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]
-    );
-  };
+  // Refetch function for realtime updates
+  const refetchLeads = useCallback(async () => {
+    try {
+      const data = await listLeads({ q, sort, page, pageSize, website, socials, contacted });
+      setResults(data);
+    } catch (err) {
+      console.error("Error refetching leads:", err);
+    }
+  }, [q, sort, page, pageSize, website, socials, contacted]);
 
-  const hasSocials = (lead: Lead) =>
-    !!(lead.facebook || lead.instagram || lead.twitter || lead.linkedin || lead.tiktok);
+  // Fetch leads data
+  useEffect(() => {
+    async function fetchLeads() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const data = await listLeads({ q, sort, page, pageSize, website, socials, contacted });
+        setResults(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load leads");
+        console.error("Error fetching leads:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchLeads();
+  }, [q, sort, page, pageSize, website, socials, contacted]);
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="border-b border-sidebar-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Results</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {filteredLeads.length} leads found. Hunter fetched these leads. Filter fast, save the best.
-            </p>
-          </div>
-          <Button onClick={() => (window.location.href = "/app/scrape")}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Search
-          </Button>
-        </div>
-      </div>
+  // Realtime subscription for leads updates
+  useLeadsRealtime({
+    onChange: useCallback((change) => {
+      console.log('Realtime lead change received:', change);
 
-      {/* Filter Toolbar */}
-      <div className="border-b border-sidebar-border px-6 py-4 space-y-4">
-        <div className="flex flex-wrap gap-3">
-          {/* Text Search */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search leads..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+      // For INSERT and DELETE, refetch to get accurate data
+      // For UPDATE, skip refetch to preserve order (we handle updates optimistically)
+      if (change.type === 'INSERT' || change.type === 'DELETE') {
+        refetchLeads();
+      }
 
-          {/* Categories */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Filter className="h-4 w-4" />
-                Categories
-                {selectedCategories.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {selectedCategories.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56">
-              {allCategories.map((cat) => (
-                <DropdownMenuItem key={cat} onClick={() => toggleCategory(cat)}>
-                  <Checkbox checked={selectedCategories.includes(cat)} className="mr-2" />
-                  {cat}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+      // Show toast notification for new leads
+      if (change.type === 'INSERT') {
+        toast.success('New lead arrived!', {
+          description: `Added: ${change.row.title || 'Untitled'}`,
+          duration: 3000,
+        });
+      } else if (change.type === 'UPDATE') {
+        // For updates, just update local state without refetching to preserve order
+        setResults(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            rows: prev.rows.map(lead => 
+              lead.place_id === change.row.place_id 
+                ? { ...lead, ...change.row } 
+                : lead
+            )
+          };
+        });
+      } else if (change.type === 'DELETE') {
+        toast.warning('Lead removed', {
+          description: `Removed: ${change.row.title || 'Untitled'}`,
+          duration: 2000,
+        });
+      }
+    }, [refetchLeads]),
+    enabled: true, // Always enabled when component is mounted
+  });
 
-          {/* Cities */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                Location
-                {selectedCities.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {selectedCities.length}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56">
-              {allCities.map((city) => (
-                <DropdownMenuItem key={city} onClick={() => toggleCity(city)}>
-                  <Checkbox checked={selectedCities.includes(city)} className="mr-2" />
-                  {city}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+  // Clamp page to valid range when results change
+  const safePage = results ? Math.min(Math.max(1, page), results.pageCount) : 1;
 
-          {/* Rating */}
-          <Select value={minRating} onValueChange={setMinRating}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Min Rating" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Any</SelectItem>
-              <SelectItem value="3.5">3.5+</SelectItem>
-              <SelectItem value="4.0">4.0+</SelectItem>
-              <SelectItem value="4.5">4.5+</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Website Filter */}
-          <Select value={websiteFilter} onValueChange={(v: any) => setWebsiteFilter(v)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Any Website</SelectItem>
-              <SelectItem value="yes">Has Website</SelectItem>
-              <SelectItem value="no">No Website</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Socials Filter */}
-          <Select value={socialsFilter} onValueChange={(v: any) => setSocialsFilter(v)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Any Socials</SelectItem>
-              <SelectItem value="no">No Socials</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button variant="ghost" onClick={resetFilters}>
-            <X className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
-        </div>
-
-        {/* Toggles Row */}
-        <div className="flex gap-6">
-          <div className="flex items-center gap-2">
-            <Switch id="open-now" checked={openNow} onCheckedChange={setOpenNow} />
-            <Label htmlFor="open-now" className="text-sm">
-              Open now
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id="verified" checked={verifiedOnly} onCheckedChange={setVerifiedOnly} />
-            <Label htmlFor="verified" className="text-sm">
-              Verified phone only
-            </Label>
-          </div>
-        </div>
-      </div>
-
-      {/* Bulk Actions Bar */}
-      {selectedLeads.size > 0 && (
-        <div className="bg-primary/10 border-b border-primary/20 px-6 py-3">
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <div className="border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
-              {selectedLeads.size} lead{selectedLeads.size > 1 ? "s" : ""} selected
-            </span>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => setListsDialogOpen(true)}>
-                Add to List
-              </Button>
-              <Button size="sm" variant="outline" onClick={onExportCSV}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
-              </Button>
-              <Button size="sm" variant="outline" onClick={onMarkContacted}>
-                <Check className="mr-2 h-4 w-4" />
-                Mark Contacted
-              </Button>
-              <Button size="sm" variant="outline" onClick={onAssignOwner}>
-                Assign Owner
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedLeads(new Set())}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Clear
-              </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Results</h1>
+              <p className="text-sm text-muted-foreground mt-1">Loading leads...</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-24 h-9 bg-muted rounded-md animate-pulse"></div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Table */}
-      <div className="flex-1 px-6 py-4">
-        {filteredLeads.length === 0 ? (
-          <Card className="p-12 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                <Search className="h-8 w-8 text-muted-foreground" />
-              </div>
-              {MOCK_LEADS.length === 0 ? (
-                <>
-                  <h3 className="text-lg font-semibold">No results yet</h3>
-                  <p className="text-muted-foreground">
-                    Run a search from New Search to start finding leads.
-                  </p>
-                  <Button onClick={() => (window.location.href = "/app/scrape")}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Search
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-semibold">No matches</h3>
-                  <p className="text-muted-foreground">Try relaxing your filters.</p>
-                  <Button variant="outline" onClick={resetFilters}>
-                    Reset Filters
-                  </Button>
-                </>
-              )}
+        <div className="flex-1 px-6 py-4">
+          {view === 'cards' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="shadow-sm border rounded-xl overflow-hidden">
+                  <div className="p-0">
+                    <div className="aspect-video bg-muted animate-pulse"></div>
+                    <div className="p-4 space-y-2">
+                      <div className="h-4 bg-muted rounded animate-pulse w-3/4"></div>
+                      <div className="h-3 bg-muted rounded animate-pulse w-1/2"></div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 bg-muted rounded animate-pulse w-1/4"></div>
+                        <div className="h-3 bg-muted rounded animate-pulse w-1/4"></div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-lg border">
+          ) : (
+            <div className="rounded-2xl border bg-background shadow-sm">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
                   <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Business</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Website</TableHead>
-                    <TableHead>Socials</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead className="w-24">Actions</TableHead>
+                    <TableHead scope="col" className="w-20 px-4 py-3">Logo</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Title</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Category</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden md:table-cell">City</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Phone</TableHead>
+                    <TableHead scope="col" className="px-2 py-3 text-center">Rating</TableHead>
+                    <TableHead scope="col" className="px-2 py-3 text-center hidden md:table-cell">Reviews</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden sm:table-cell">Website</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden sm:table-cell">Socials</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden md:table-cell">Created</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLeads.map((lead) => (
-                    <TableRow
-                      key={lead.id}
-                      className="cursor-pointer hover:bg-sidebar-accent"
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest("button, a, input")) return;
-                        openLeadDrawer(lead);
-                      }}
-                    >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedLeads.has(lead.id)}
-                          onCheckedChange={() => toggleSelectLead(lead.id)}
-                        />
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i} className={`h-14 ${i % 2 === 1 ? "odd:bg-muted/20" : ""}`}>
+                      <TableCell className="px-4 py-3 rounded-l-lg">
+                        <div className="w-14 h-14 bg-muted rounded-lg animate-pulse" />
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${lead.latitude},${lead.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {lead.title}
-                          </a>
-                          <p className="text-xs text-muted-foreground">
-                            {lead.category} • {lead.city}
-                          </p>
-                        </div>
+                      <TableCell className="px-4 py-3">
+                        <div className="h-4 bg-muted rounded animate-pulse w-32" />
                       </TableCell>
-                      <TableCell>
-                        {lead.rating ? (
-                          <div className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                            <span className="text-sm font-medium">{lead.rating}</span>
-                            <Badge variant="secondary" className="text-xs ml-1">
-                              {lead.reviewsCount}
-                            </Badge>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No reviews</span>
-                        )}
+                      <TableCell className="px-4 py-3">
+                        <div className="h-4 bg-muted rounded animate-pulse w-20" />
                       </TableCell>
-                      <TableCell>
-                        {lead.phone ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto p-1 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyToClipboard(lead.phone!);
-                            }}
-                          >
-                            {lead.phone}
-                            <Copy className="ml-1 h-3 w-3" />
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+                      <TableCell className="px-4 py-3 hidden md:table-cell">
+                        <div className="h-4 bg-muted rounded animate-pulse w-16" />
                       </TableCell>
-                      <TableCell>
-                        {lead.website ? (
-                          <a
-                            href={lead.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Link
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            None
-                          </Badge>
-                        )}
+                      <TableCell className="px-4 py-3">
+                        <div className="h-4 bg-muted rounded animate-pulse w-24" />
                       </TableCell>
-                      <TableCell>
-                        {hasSocials(lead) ? (
-                          <div className="flex gap-1">
-                            {lead.facebook && <Badge variant="outline" className="text-xs px-1">FB</Badge>}
-                            {lead.instagram && <Badge variant="outline" className="text-xs px-1">IG</Badge>}
-                            {lead.twitter && <Badge variant="outline" className="text-xs px-1">X</Badge>}
-                            {lead.linkedin && <Badge variant="outline" className="text-xs px-1">LI</Badge>}
-                          </div>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            None
-                          </Badge>
-                        )}
+                      <TableCell className="px-2 py-3 text-center">
+                        <div className="h-4 bg-muted rounded animate-pulse w-10 mx-auto" />
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                        {lead.address}
+                      <TableCell className="px-2 py-3 text-center hidden md:table-cell">
+                        <div className="h-4 bg-muted rounded animate-pulse w-12 mx-auto" />
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openLeadDrawer(lead)}>
-                              Open Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              setSelectedLeads(new Set([lead.id]));
-                              setListsDialogOpen(true);
-                            }}>
-                              Add to List
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>Export vCard</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                      <TableCell className="px-4 py-3 hidden sm:table-cell">
+                        <div className="h-4 bg-muted rounded animate-pulse w-24" />
+                      </TableCell>
+                      <TableCell className="px-4 py-3 hidden sm:table-cell">
+                        <div className="h-4 bg-muted rounded animate-pulse w-16" />
+                      </TableCell>
+                      <TableCell className="px-4 py-3 hidden md:table-cell rounded-r-lg">
+                        <div className="h-4 bg-muted rounded animate-pulse w-20" />
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <div className="border-b border-border px-6 py-4">
+          <h1 className="text-2xl font-bold">Results</h1>
+          <p className="text-sm text-muted-foreground mt-1">Error loading leads</p>
+        </div>
+        <div className="flex-1 px-6 py-4">
+          <Card className="p-12 text-center">
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="w-16 h-16 bg-destructive/20 rounded-full flex items-center justify-center mx-auto">
+                <SearchIcon className="h-8 w-8 text-destructive" />
+              </div>
+              <h3 className="text-lg font-semibold text-destructive">Error</h3>
+              <p className="text-muted-foreground">{error}</p>
+              <Button onClick={() => window.location.reload()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Try Again
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!results) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-4">No data available</h2>
+          <p className="text-muted-foreground">Please try refreshing the page.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
+      <div className="border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Results</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Found {results.total.toLocaleString()} leads. Filter and explore your prospects.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* View Toggle - Hidden for now, keeping code for future use */}
+            {/* <div className="flex items-center border rounded-lg p-1">
+              <Link
+                to={`/app/results?${new URLSearchParams({ ...Object.fromEntries(searchParams), view: 'table', page: '1' }).toString()}`}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  view === 'table'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <TableIcon className="mr-2 h-4 w-4" />
+                Table
+              </Link>
+              <Link
+                to={`/app/results?${new URLSearchParams({ ...Object.fromEntries(searchParams), view: 'cards', page: '1' }).toString()}`}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  view === 'cards'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Cards
+              </Link>
+            </div> */}
+            <Link to="/app/businesses">
+              <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            New Search
+          </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <ResultsFilters totalResults={results.total} />
+
+      {/* Content */}
+      <div className="flex-1 px-6 py-4">
+        {results.rows.length === 0 ? (
+          <Card className="p-12 text-center">
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                <SearchIcon className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">No leads found</h3>
+                  <p className="text-muted-foreground">
+                {q ? "Try adjusting your search terms or" : "Run a search to start finding leads."}
+                  </p>
+              <Link to="/app/businesses">
+                <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Search
+                  </Button>
+              </Link>
+            </div>
+          </Card>
+        ) : view === 'cards' ? (
+          <div className="space-y-4">
+            {/* Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {results.rows.map((lead) => (
+                <div key={lead.place_id} className="relative group">
+                  <div className="absolute top-2 left-2 z-10">
+                    <Checkbox
+                      checked={selectedLeads.has(lead.place_id)}
+                      onCheckedChange={() => toggleLeadSelection(lead.place_id)}
+                      className="bg-background/80 backdrop-blur-sm"
+                    />
+                  </div>
+                  <LeadCard
+                    lead={lead}
+                    onOpen={(lead) => setActiveLead(lead)}
+                    onViewContacts={handleViewContacts}
+                    onToggleContacted={handleToggleContacted}
+                  />
+                </div>
+              ))}
+            </div>
 
             {/* Pagination */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page:</span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(v) => {
-                    setPageSize(parseInt(v));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="text-sm text-muted-foreground">
+                Showing {((safePage - 1) * results.pageSize) + 1}-{Math.min(safePage * results.pageSize, results.total)} of {results.total.toLocaleString()}
               </div>
 
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filteredLeads.length)} of{" "}
-                  {filteredLeads.length}
-                </span>
-                <div className="flex gap-1">
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/app/results?${new URLSearchParams({
+                    ...Object.fromEntries(new URLSearchParams(window.location.search)),
+                    page: Math.max(1, safePage - 1).toString()
+                  }).toString()}`}
+                  className={safePage <= 1 ? "pointer-events-none" : ""}
+                >
                   <Button
                     variant="outline"
-                    size="icon"
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
+                    size="sm"
+                    disabled={safePage <= 1}
+                    aria-label="Previous page"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Prev
+                  </Button>
+                </Link>
+
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {safePage} of {results.pageCount}
+                </span>
+
+                <Link
+                  to={`/app/results?${new URLSearchParams({
+                    ...Object.fromEntries(new URLSearchParams(window.location.search)),
+                    page: Math.min(results.pageCount, safePage + 1).toString()
+                  }).toString()}`}
+                  className={safePage >= results.pageCount ? "pointer-events-none" : ""}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage >= results.pageCount}
+                    aria-label="Next page"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        ) : view === 'table' ? (
+          <div className="space-y-4">
+            {/* Results Table */}
+            <div className="rounded-2xl border bg-background shadow-sm">
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
+                  <TableRow>
+                    <TableHead scope="col" className="w-12 px-4 py-3">
+                      <Checkbox
+                        checked={results.rows.length > 0 && selectedLeads.size === results.rows.length}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            selectAllLeads();
+                          } else {
+                            clearSelection();
+                          }
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead scope="col" className="w-20 px-4 py-3">Logo</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Title</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Category</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden md:table-cell">City</TableHead>
+                    <TableHead scope="col" className="px-4 py-3">Phone</TableHead>
+                    <TableHead scope="col" className="px-2 py-3 text-center">Rating</TableHead>
+                    <TableHead scope="col" className="px-2 py-3 text-center hidden md:table-cell">Reviews</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden lg:table-cell">
+                      People
+                      <Badge variant="secondary" className="ml-2 text-xs">New</Badge>
+                    </TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden sm:table-cell">Website</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden sm:table-cell">Socials</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden md:table-cell">Created</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 hidden lg:table-cell">Contacted</TableHead>
+                    <TableHead scope="col" className="px-4 py-3 sm:hidden">Links</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {results.rows.map((lead, index) => {
+                    const socialIcons = [
+                      { key: 'facebook', url: lead.facebook, Icon: Facebook },
+                      { key: 'instagram', url: lead.instagram, Icon: Instagram },
+                      { key: 'linkedin', url: lead.linkedin, Icon: Linkedin },
+                      { key: 'twitter', url: lead.twitter, Icon: Twitter },
+                      { key: 'youtube', url: lead.youtube, Icon: Youtube },
+                      { key: 'tiktok', url: lead.tiktok, Icon: Music },
+                      { key: 'pinterest', url: lead.pinterest, Icon: Pin },
+                      { key: 'discord', url: lead.discord, Icon: MessageSquare },
+                    ].filter(social => social.url);
+
+                    const website = lead.website ?? null;
+                    const isRealWebsite = !!website && !isMaps(website);
+
+                    return (
+                    <TableRow
+                        key={lead.place_id}
+                        className={`group h-14 transition-colors hover:bg-muted/30 ${index % 2 === 1 ? "odd:bg-muted/20" : ""}`}
+                      >
+                        <TableCell className="px-4 py-3">
+                        <Checkbox
+                            checked={selectedLeads.has(lead.place_id)}
+                            onCheckedChange={() => toggleLeadSelection(lead.place_id)}
+                          />
+                        </TableCell>
+                        <TableCell className="px-4 py-3 rounded-l-lg">
+                          <LeadImagePreview
+                            src={lead.image_url}
+                            title={lead.title}
+                            mapsUrl={lead.url}
+                            trigger={
+                              <div className="group-hover:shadow-md transition-shadow">
+                                <LeadLogo
+                                  title={lead.title}
+                                  imageUrl={lead.image_url}
+                                  size={56}
+                                  rounded="lg"
+                                />
+                              </div>
+                            }
+                        />
+                      </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <span className="font-bold">{lead.title || "Untitled"}</span>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <span className="text-sm">{lead.category || "—"}</span>
+                        </TableCell>
+                        <TableCell className="px-4 py-3 hidden md:table-cell">
+                          <span className="text-sm">{lead.city || "—"}</span>
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          {lead.phone ? (
+                            <a
+                              href={`tel:${lead.phone}`}
+                              className="text-sm text-primary hover:underline flex items-center gap-1"
+                              aria-label={`Call ${lead.phone}`}
+                            >
+                              <Phone className="h-3 w-3" />
+                              {lead.phone}
+                            </a>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                      </TableCell>
+                        <TableCell className="px-2 py-3 text-center">
+                        {lead.rating ? (
+                            <Badge variant="secondary" className="flex items-center gap-1 w-fit mx-auto">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                              <span className="text-sm font-medium">{formatRating(lead.rating)}</span>
+                            </Badge>
+                        ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                        <TableCell className="px-2 py-3 text-center hidden md:table-cell">
+                          <span className="text-sm">
+                            {lead.review_count ? lead.review_count.toLocaleString() : "—"}
+                          </span>
+                      </TableCell>
+                        <TableCell className="px-4 py-3 hidden lg:table-cell">
+                          <ContactPreview placeId={lead.place_id} onViewContacts={handleViewContacts} />
+                      </TableCell>
+                        <TableCell className="px-4 py-3 hidden sm:table-cell">
+                          {isRealWebsite ? (
+                          <a
+                              href={website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                              className="text-primary hover:underline text-sm flex items-center gap-1"
+                              aria-label={`Visit website for ${lead.title}`}
+                          >
+                              <Globe className="h-3 w-3" />
+                              {getHostname(website)}
+                          </a>
+                        ) : (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">No website</Badge>
+                        )}
+                      </TableCell>
+                        <TableCell className="px-4 py-3 hidden sm:table-cell">
+                          <div className="flex items-center gap-2">
+                            {socialIcons.length > 0 ? (
+                              socialIcons.map(({ key, url, Icon }) => (
+                                <a
+                                  key={key}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                  aria-label={`Visit ${key} profile`}
+                                >
+                                  <Icon className="h-3 w-3" />
+                                </a>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </div>
+                      </TableCell>
+                        <TableCell className="px-4 py-3 hidden md:table-cell">
+                          <TimeAgo 
+                            iso={lead.created_at} 
+                            titlePrefix="Created" 
+                            className="text-sm text-muted-foreground" 
+                          />
+                      </TableCell>
+                        <TableCell className="px-4 py-3 hidden lg:table-cell">
+                          <Button
+                            variant={lead.contacted ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs h-7 px-2 ${
+                              lead.contacted 
+                                ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-200" 
+                                : "hover:bg-green-50 hover:text-green-700 hover:border-green-200"
+                            }`}
+                            onClick={() => handleToggleContacted(lead.place_id, !lead.contacted)}
+                          >
+                            <Check className="h-3 w-3" />
+                            {lead.contacted ? '' : 'Mark'}
+                            </Button>
+                      </TableCell>
+                        <TableCell className="px-4 py-3 sm:hidden rounded-r-lg">
+                          <div className="flex items-center gap-2">
+                            {isRealWebsite && (
+                              <a
+                                href={website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                aria-label={`Visit website for ${lead.title}`}
+                              >
+                                <Globe className="h-3 w-3" />
+                              </a>
+                            )}
+                            {socialIcons.map(({ key, url, Icon }) => (
+                              <a
+                                key={key}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary transition-colors"
+                                aria-label={`Visit ${key} profile`}
+                              >
+                                <Icon className="h-3 w-3" />
+                              </a>
+                            ))}
+                          </div>
+                      </TableCell>
+                    </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {((safePage - 1) * results.pageSize) + 1}-{Math.min(safePage * results.pageSize, results.total)} of {results.total.toLocaleString()}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/app/results?${new URLSearchParams({
+                    ...Object.fromEntries(new URLSearchParams(window.location.search)),
+                    page: Math.max(1, safePage - 1).toString()
+                  }).toString()}`}
+                  className={safePage <= 1 ? "pointer-events-none" : ""}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage <= 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    Prev
+                  </Button>
+                </Link>
+
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {safePage} of {results.pageCount}
+                </span>
+
+                <Link
+                  to={`/app/results?${new URLSearchParams({
+                    ...Object.fromEntries(new URLSearchParams(window.location.search)),
+                    page: Math.min(results.pageCount, safePage + 1).toString()
+                  }).toString()}`}
+                  className={safePage >= results.pageCount ? "pointer-events-none" : ""}
+                >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage >= results.pageCount}
+                    aria-label="Next page"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+                </div>
+              </div>
+            </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Invalid view selected</p>
+          </div>
+        )}
+      </div>
+
+      {/* Lead Details Drawer */}
+      {activeLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <LeadLogo
+                  title={activeLead.title}
+                  imageUrl={activeLead.image_url}
+                  size={80}
+                  rounded="lg"
+                />
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold">{activeLead.title || 'Untitled'}</h2>
+                  <p className="text-muted-foreground">{activeLead.category || '—'}</p>
+                  {activeLead.city && (
+                    <p className="text-sm text-muted-foreground">{activeLead.city}</p>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveLead(null)}
+                >
+                  ×
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {activeLead.rating && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                      <span>{formatRating(activeLead.rating)}</span>
+                    </Badge>
+                    {activeLead.review_count && (
+                      <span className="text-sm text-muted-foreground">
+                        {activeLead.review_count.toLocaleString()} reviews
+                      </span>
+                    )}
+                  </div>
+                )}
+                
+                {activeLead.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    <a href={`tel:${activeLead.phone}`} className="text-primary hover:underline">
+                      {activeLead.phone}
+                    </a>
+                  </div>
+                )}
+                
+                {activeLead.website && !isMaps(activeLead.website) && (
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    <a 
+                      href={activeLead.website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {getHostname(activeLead.website)}
+                    </a>
+                  </div>
+                )}
+                
+                <div className="text-sm text-muted-foreground">
+                  <TimeAgo iso={activeLead.created_at} titlePrefix="Added" />
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Lead Details Drawer */}
+      <LeadDetailsDrawer
+        lead={activeLead}
+        open={!!activeLead}
+        onOpenChange={(v) => !v && setActiveLead(null)}
+        onViewContacts={handleViewContacts}
+      />
+
+      {/* Contacts Sheet (for table view) */}
+      <ContactsSheet
+        placeId={selectedPlaceId}
+        open={contactsSheetOpen}
+        onOpenChange={setContactsSheetOpen}
+        title={selectedBusinessTitle}
+      />
+
+      {/* Lead Contacts Panel */}
+      <LeadContactsPanel
+        placeId={contactsPanelPlaceId}
+        title={contactsPanelTitle}
+        open={contactsPanelOpen}
+        onClose={() => setContactsPanelOpen(false)}
+      />
+
+      {/* Selection Footer */}
+      {selectedLeads.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border shadow-lg z-50">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium">
+                  {selectedLeads.size} lead{selectedLeads.size !== 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                  <Button
+                  onClick={handleBulkMarkContacted}
+                    variant="outline"
+                  className="border-green-200 text-green-800 hover:bg-green-50"
+                  >
+                  <Check className="h-4 w-4 mr-2" />
+                  Mark as Contacted
                   </Button>
                   <Button
-                    variant="outline"
-                    size="icon"
-                    disabled={page === totalPages}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                  onClick={() => setAddToListDialogOpen(true)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add to List
                   </Button>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Lead Detail Drawer */}
-      <LeadDetailDrawer
-        lead={selectedLead}
-        open={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          setSelectedLead(null);
-        }}
-        onAddToList={(leadId) => {
-          setSelectedLeads(new Set([leadId]));
-          setListsDialogOpen(true);
-        }}
-      />
-
-      {/* Lists Picker Dialog */}
-      <ListsPickerDialog
-        open={listsDialogOpen}
-        onClose={() => setListsDialogOpen(false)}
-        lists={savedLists}
-        selectedCount={selectedLeads.size}
-        onSelectList={(listId) => onAddToList(Array.from(selectedLeads), listId)}
-        onCreateList={(name) => {
-          onCreateList(name);
-          onAddToList(Array.from(selectedLeads), `list-${Date.now()}`);
-        }}
+      {/* Add to List Dialog */}
+      <AddToListDialog
+        open={addToListDialogOpen}
+        onOpenChange={setAddToListDialogOpen}
+        selectedLeads={Array.from(selectedLeads)}
+        onSuccess={handleAddToListSuccess}
       />
     </div>
   );

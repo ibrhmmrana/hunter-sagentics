@@ -1,25 +1,58 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/auth/AuthProvider";
 import hunterLogoLight from "@/assets/hunter-logo-light.png";
 import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 import loginBackground from "@/assets/login-background.jpg";
 import googleLogo from "@/assets/google-logo.png";
 
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn } = useAuth();
+
+  const from = (location.state as any)?.from?.pathname || "/app/results";
 
   const onAuthWithGoogle = () => {
     console.log("Google auth triggered");
-    navigate("/app/home");
+    navigate(from, { replace: true });
   };
 
-  const onSignIn = () => {
-    console.log("Sign in:", email);
-    navigate("/app/home");
+  const onSignIn = async () => {
+    try {
+      setError("");
+      setLoading(true);
+
+      // Validate form
+      const result = loginSchema.safeParse({ email, password });
+      if (!result.success) {
+        setError(result.error.errors[0].message);
+        return;
+      }
+
+      // Sign in with Supabase
+      await signIn(email, password);
+      
+      // Navigate to intended destination
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "Failed to sign in. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,21 +107,29 @@ export default function Login() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && onSignIn()}
                 className="h-12 rounded-full bg-gray-900/50 border-gray-700 text-gray-100 placeholder:text-gray-500"
               />
+              {error && (
+                <p className="text-sm text-red-400 text-center">{error}</p>
+              )}
               <Button
                 className="w-full h-12 rounded-full text-white"
                 style={{ backgroundColor: "#1E4E46" }}
                 onClick={onSignIn}
+                disabled={loading}
               >
-                Sign in
+                {loading ? "Signing in..." : "Sign in"}
               </Button>
             </div>
 
             <div className="space-y-2">
-              <a href="#" className="text-sm text-gray-400 hover:text-gray-300 block">
+              <button 
+                onClick={() => navigate("/forgot-password")} 
+                className="text-sm text-gray-400 hover:text-gray-300 block"
+              >
                 Forgot your password?
-              </a>
+              </button>
               <p className="text-sm text-gray-400">
                 Don't have an account?{" "}
                 <button 

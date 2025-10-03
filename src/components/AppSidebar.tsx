@@ -1,5 +1,6 @@
 import { Home, MessageSquare, Search, FileText, FolderOpen, Settings, LogOut } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   Sidebar,
   SidebarContent,
@@ -28,8 +29,8 @@ import hunterLogoDark from "@/assets/hunter-logo-dark.png";
 
 const mainNavItems = [
   { title: "Home", url: "/app/home", icon: Home },
-  { title: "Scrape", url: "/app/scrape", icon: Search },
-  { title: "Chat", url: "/app/chat", icon: MessageSquare },
+  { title: "Find Businesses", url: "/app/businesses", icon: Search },
+  // { title: "Chat", url: "/app/chat", icon: MessageSquare }, // Hidden for now
   { title: "Results", url: "/app/results", icon: FileText },
   { title: "Lists", url: "/app/lists", icon: FolderOpen },
   { title: "Settings", url: "/app/settings", icon: Settings },
@@ -38,16 +39,31 @@ const mainNavItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const creditsUsed = 310;
   const creditsTotal = 400;
   const creditsPercent = (creditsUsed / creditsTotal) * 100;
   const isCollapsed = state === "collapsed";
 
-  const handleLogout = () => {
-    console.log("Logging out...");
-    // Navigate to login page
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still navigate to login even if signOut fails
+      navigate("/login", { replace: true });
+    }
   };
+
+  // Get user initials and display name
+  const userInitials = user?.user_metadata?.first_name && user?.user_metadata?.last_name
+    ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name[0]}`
+    : user?.email?.[0]?.toUpperCase() || "U";
+  
+  const userDisplayName = user?.user_metadata?.first_name && user?.user_metadata?.last_name
+    ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
+    : user?.email || "User";
 
   return (
     <Sidebar collapsible="icon">
@@ -81,12 +97,12 @@ export function AppSidebar() {
                 <button className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <Avatar className="h-8 w-8 cursor-pointer">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                      I
+                      {userInitials}
                     </AvatarFallback>
                   </Avatar>
                   {!isCollapsed && (
                     <div className="flex-1 min-w-0 text-left">
-                      <p className="text-sm font-medium truncate">Ibrahim Rana's...</p>
+                      <p className="text-sm font-medium truncate">{userDisplayName}</p>
                     </div>
                   )}
                 </button>

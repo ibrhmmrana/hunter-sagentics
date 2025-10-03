@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, MapPin, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +8,10 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { scrapeSchema, ScrapeForm } from "@/types/scrape";
+import { startScrape } from "@/data/scrape";
 
 // Location suggestions
 const SA_LOCATIONS = [
@@ -20,18 +24,18 @@ const BUSINESS_TYPES = [
   "Bakery", "Auto repair", "Real estate", "Hardware store", "Pharmacy"
 ];
 
-// Presets that autofill all four fields
+// Presets that autofill form fields
 const PRESETS: Array<{
   label: string;
   location: string;
-  businessType: string;
-  websiteReq: "with" | "without" | "any";
-  leads: number;
+  businessType: string[];
+  websiteRequirement: "any" | "with" | "without";
+  leadCount: number;
 }> = [
-  { label: "Sandton · Restaurants · No Website · 200", location: "Sandton", businessType: "Restaurant", websiteReq: "without", leads: 200 },
-  { label: "Rosebank · Gyms · No Website · 150", location: "Rosebank", businessType: "Gym", websiteReq: "without", leads: 150 },
-  { label: "Cape Town · Salons · No Website · 300", location: "Cape Town", businessType: "Salon", websiteReq: "without", leads: 300 },
-  { label: "Johannesburg · Coffee shops · With Website · 100", location: "Johannesburg", businessType: "Coffee shop", websiteReq: "with", leads: 100 },
+  { label: "Sandton · Restaurants · No Website · 200", location: "Sandton", businessType: ["Restaurant"], websiteRequirement: "without", leadCount: 200 },
+  { label: "Rosebank · Gyms · No Website · 150", location: "Rosebank", businessType: ["Gym"], websiteRequirement: "without", leadCount: 150 },
+  { label: "Cape Town · Salons · No Website · 100", location: "Cape Town", businessType: ["Salon"], websiteRequirement: "without", leadCount: 100 },
+  { label: "Johannesburg · Coffee shops · With Website · 50", location: "Johannesburg", businessType: ["Coffee shop"], websiteRequirement: "with", leadCount: 50 },
 ];
 
 interface JobStatus {
@@ -41,120 +45,135 @@ interface JobStatus {
 }
 
 export default function AppScrape() {
-  // Form state (only 4 fields, but location and businessType are now arrays)
-  const [locations, setLocations] = useState<string[]>([]);
-  const [locationInput, setLocationInput] = useState("");
-  const [businessTypes, setBusinessTypes] = useState<string[]>([]);
-  const [businessTypeInput, setBusinessTypeInput] = useState("");
-  const [websiteRequirement, setWebsiteRequirement] = useState<"with" | "without" | "any">("any");
-  const [leadCount, setLeadCount] = useState([200]);
+  const navigate = useNavigate();
   
+  // Form state
+  const [form, setForm] = useState<ScrapeForm>({
+    location: "",
+    businessType: [],
+    websiteRequirement: "any",
+    leadCount: 50,
+  });
+  
+  const [businessTypeInput, setBusinessTypeInput] = useState("");
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [showBusinessTypeSuggestions, setShowBusinessTypeSuggestions] = useState(false);
-  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Validation
-  const isValid = locations.length > 0 && businessTypes.length > 0;
+  const isValid = form.location.length >= 2 && form.businessType.length >= 1;
 
   // Load from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("hunter_minimal_search");
+    const saved = localStorage.getItem("scrape:last");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setLocations(parsed.locations || []);
-        setBusinessTypes(parsed.businessTypes || []);
-        setWebsiteRequirement(parsed.websiteRequirement || "any");
-        setLeadCount([parsed.leadCount || 200]);
+        setForm({
+          location: parsed.location || "",
+          businessType: parsed.businessType || [],
+          websiteRequirement: parsed.websiteRequirement || "any",
+          leadCount: parsed.leadCount || 50,
+        });
       } catch (e) {
         console.error("Failed to parse saved form", e);
       }
     }
   }, []);
 
-  // Save to localStorage on change
-  useEffect(() => {
-    localStorage.setItem("hunter_minimal_search", JSON.stringify({
-      locations,
-      businessTypes,
-      websiteRequirement,
-      leadCount: leadCount[0]
-    }));
-  }, [locations, businessTypes, websiteRequirement, leadCount]);
-
-  // Handlers for adding/removing locations and business types
-  const addLocation = (loc: string) => {
-    const trimmed = loc.trim();
-    if (trimmed && !locations.includes(trimmed)) {
-      setLocations([...locations, trimmed]);
-      setLocationInput("");
-    }
+  // Form update helper
+  const updateForm = (updates: Partial<ScrapeForm>) => {
+    setForm(prev => ({ ...prev, ...updates }));
+    setErrors({}); // Clear errors when form changes
   };
 
-  const removeLocation = (loc: string) => {
-    setLocations(locations.filter((l) => l !== loc));
-  };
-
+  // Business type helpers
   const addBusinessType = (type: string) => {
     const trimmed = type.trim();
-    if (trimmed && !businessTypes.includes(trimmed)) {
-      setBusinessTypes([...businessTypes, trimmed]);
+    if (trimmed && !form.businessType.includes(trimmed)) {
+      updateForm({ businessType: [...form.businessType, trimmed] });
       setBusinessTypeInput("");
     }
   };
 
   const removeBusinessType = (type: string) => {
-    setBusinessTypes(businessTypes.filter((t) => t !== type));
+    updateForm({ businessType: form.businessType.filter(t => t !== type) });
   };
 
-  // Mock handlers - comment stubs only
-  const onRunSearch = () => {
-    // TODO: Integrate with backend
-    // onRunSearch({ locations, businessTypes, websiteRequirement, leadCount: leadCount[0] })
-    console.log("onRunSearch", { locations, businessTypes, websiteRequirement, leadCount: leadCount[0] });
-
-    const mockJobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    setJobStatus({
-      jobId: mockJobId,
-      status: "Queued",
-      startedAt: new Date().toLocaleString(),
-    });
-
-    toast.success("Search started!", {
-      description: `Job ID: ${mockJobId}`,
-    });
-  };
-
-  const onRefreshJob = () => {
-    // TODO: Poll job status
-    // onRefreshJob(jobStatus?.jobId)
-    console.log("onRefreshJob", jobStatus?.jobId);
-    if (jobStatus && jobStatus.status === "Queued") {
-      setJobStatus({ ...jobStatus, status: "Running" });
-      toast.info("Job is now running");
+  const handleBusinessTypeInput = (value: string) => {
+    setBusinessTypeInput(value);
+    // Auto-add on comma
+    if (value.includes(',')) {
+      const types = value.split(',').map(s => s.trim()).filter(Boolean);
+      types.forEach(type => addBusinessType(type));
     }
   };
 
-  const onViewResults = () => {
-    // TODO: Navigate to results
-    // onViewResults(jobId)
-    console.log("onViewResults", jobStatus?.jobId);
-    window.location.href = `/app/results?queryId=${jobStatus?.jobId}`;
+  // Submit handler
+  const onRunSearch = async () => {
+    try {
+      setLoading(true);
+      setErrors({});
+
+      // Normalize business types from input if any
+      if (businessTypeInput.trim()) {
+        const types = businessTypeInput.split(',').map(s => s.trim()).filter(Boolean);
+        types.forEach(type => addBusinessType(type));
+      }
+
+      // Validate form
+      const result = scrapeSchema.safeParse(form);
+      if (!result.success) {
+        const newErrors: Record<string, string> = {};
+        result.error.errors.forEach(error => {
+          if (error.path[0]) {
+            newErrors[error.path[0] as string] = error.message;
+          }
+        });
+        setErrors(newErrors);
+        return;
+      }
+
+      // Start scrape (this will check authentication internally)
+      const { clientQueryId } = await startScrape(result.data);
+
+      // Save form to localStorage
+      localStorage.setItem("scrape:last", JSON.stringify(result.data));
+
+      // Show success and redirect
+      toast.success("Search queued. Results will start appearing shortly.");
+      navigate(`/app/results?clientQueryId=${clientQueryId}`);
+
+    } catch (error: any) {
+      console.error("Scrape submission error:", error);
+      
+      // Check if it's an authentication error
+      if (error.message?.includes("Please sign in first")) {
+        toast.error("Please sign in first.");
+      } else {
+        toast.error("Couldn't queue your search. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onPresetClick = (presetIndex: number) => {
-    // TODO: Apply preset
-    // onPresetClick(presetId)
     const preset = PRESETS[presetIndex];
-    setLocations([preset.location]);
-    setBusinessTypes([preset.businessType]);
-    setWebsiteRequirement(preset.websiteReq);
-    setLeadCount([preset.leads]);
+    setForm({
+      location: preset.location,
+      businessType: preset.businessType,
+      websiteRequirement: preset.websiteRequirement,
+      leadCount: preset.leadCount,
+    });
+    setBusinessTypeInput("");
+    setErrors({});
     toast.success("Preset applied", { description: preset.label });
   };
 
   const filteredLocations = SA_LOCATIONS.filter((loc) =>
-    loc.toLowerCase().includes(locationInput.toLowerCase())
+    loc.toLowerCase().includes(form.location.toLowerCase())
   );
 
   const filteredBusinessTypes = BUSINESS_TYPES.filter((type) =>
@@ -173,31 +192,6 @@ export default function AppScrape() {
       <div className="flex-1 overflow-auto p-6 md:p-8">
         <div className="max-w-2xl mx-auto">
           <Card className="rounded-2xl shadow-md border-border p-8 space-y-8">
-            {/* Job Status (slim, at top of card when active) */}
-            {jobStatus && (
-              <div className="pb-6 border-b border-border">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Job ID: </span>
-                      <span className="font-mono">{jobStatus.jobId.slice(0, 12)}</span>
-                    </div>
-                    <Badge variant={jobStatus.status === "Completed" ? "default" : jobStatus.status === "Running" ? "secondary" : "outline"}>
-                      {jobStatus.status}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={onRefreshJob}>
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh
-                    </Button>
-                    <Button size="sm" onClick={onViewResults}>
-                      View Results
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Presets */}
             <div className="space-y-3">
@@ -216,41 +210,18 @@ export default function AppScrape() {
               </div>
             </div>
 
-            {/* Location (multiple) */}
+            {/* Location */}
             <div className="space-y-2 relative">
               <Label htmlFor="location" className="text-base font-medium">
                 Location <span className="text-destructive">*</span>
               </Label>
-              {locations.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {locations.map((loc) => (
-                    <Badge key={loc} variant="default" className="gap-1.5 px-3 py-1">
-                      {loc}
-                      <button
-                        type="button"
-                        onClick={() => removeLocation(loc)}
-                        className="hover:bg-background/20 rounded-full"
-                        aria-label={`Remove ${loc}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
                 <Input
                   id="location"
                   placeholder="e.g., Sandton"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addLocation(locationInput);
-                    }
-                  }}
+                  value={form.location}
+                  onChange={(e) => updateForm({ location: e.target.value })}
                   onFocus={() => setShowLocationSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowLocationSuggestions(false), 200)}
                   className="pl-10 h-12 text-base"
@@ -265,7 +236,7 @@ export default function AppScrape() {
                       type="button"
                       className="w-full text-left px-3 py-2 rounded hover:bg-accent text-sm transition-colors"
                       onClick={() => {
-                        addLocation(loc);
+                        updateForm({ location: loc });
                         setShowLocationSuggestions(false);
                       }}
                     >
@@ -274,17 +245,19 @@ export default function AppScrape() {
                   ))}
                 </Card>
               )}
-              <p className="text-xs text-muted-foreground">Type and press Enter to add multiple locations</p>
+              {errors.location && (
+                <p className="text-xs text-destructive">{errors.location}</p>
+              )}
             </div>
 
-            {/* Business Type (multiple) */}
+            {/* Business Types */}
             <div className="space-y-2 relative">
               <Label htmlFor="business-type" className="text-base font-medium">
-                Business type <span className="text-destructive">*</span>
+                Business type(s) <span className="text-destructive">*</span>
               </Label>
-              {businessTypes.length > 0 && (
+              {form.businessType.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {businessTypes.map((type) => (
+                  {form.businessType.map((type) => (
                     <Badge key={type} variant="default" className="gap-1.5 px-3 py-1">
                       {type}
                       <button
@@ -302,9 +275,9 @@ export default function AppScrape() {
               <div className="relative">
                 <Input
                   id="business-type"
-                  placeholder="e.g., Restaurant"
+                  placeholder="e.g., Restaurant, Gym, Salon (comma-separated)"
                   value={businessTypeInput}
-                  onChange={(e) => setBusinessTypeInput(e.target.value)}
+                  onChange={(e) => handleBusinessTypeInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -334,7 +307,10 @@ export default function AppScrape() {
                   ))}
                 </Card>
               )}
-              <p className="text-xs text-muted-foreground">Type and press Enter to add multiple business types</p>
+              {errors.businessType && (
+                <p className="text-xs text-destructive">{errors.businessType}</p>
+              )}
+              <p className="text-xs text-muted-foreground">Type and press Enter or use commas to add multiple types</p>
             </div>
 
             {/* Website Requirement */}
@@ -342,14 +318,14 @@ export default function AppScrape() {
               <Label className="text-base font-medium">Website requirement</Label>
               <ToggleGroup
                 type="single"
-                value={websiteRequirement}
+                value={form.websiteRequirement}
                 onValueChange={(val) => {
                   if (val === "with" || val === "without" || val === "any") {
-                    setWebsiteRequirement(val);
+                    updateForm({ websiteRequirement: val });
                   }
                 }}
                 className="justify-start gap-2"
-                aria-label="Website requirement filter"
+                aria-label="Website requirement"
               >
                 <ToggleGroupItem value="with" className="h-12 px-6 text-base" aria-label="With website">
                   With website
@@ -363,37 +339,45 @@ export default function AppScrape() {
               </ToggleGroup>
             </div>
 
-            {/* Leads to Generate */}
+            {/* Lead Count */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">Leads to generate</Label>
-                <span className="text-lg font-semibold">{leadCount[0]}</span>
+                <Label className="text-base font-medium">Lead count</Label>
+                <span className="text-lg font-semibold">{form.leadCount}</span>
               </div>
               <Slider
-                value={leadCount}
-                onValueChange={setLeadCount}
+                value={[form.leadCount]}
+                onValueChange={(value) => updateForm({ leadCount: value[0] })}
                 min={10}
-                max={1000}
+                max={200}
                 step={10}
                 className="py-2"
-                aria-label={`Leads to generate: ${leadCount[0]}`}
+                aria-label={`Lead count: ${form.leadCount}`}
               />
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>10</span>
-                <span>1000</span>
+                <span>200</span>
               </div>
+              {errors.leadCount && (
+                <p className="text-xs text-destructive">{errors.leadCount}</p>
+              )}
             </div>
 
             {/* Run Search Button */}
-            <Button
-              size="lg"
-              className="w-full h-12 text-base font-medium"
-              onClick={onRunSearch}
-              disabled={!isValid}
-              aria-label="Run search"
-            >
-              Run Search
-            </Button>
+            <div className="space-y-3">
+              <Button
+                size="lg"
+                className="w-full h-12 text-base font-medium"
+                onClick={onRunSearch}
+                disabled={!isValid || loading}
+                aria-label="Run search"
+              >
+                {loading ? "Submitting..." : "Run Search"}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Results will stream into the Results page. Sorting/filters apply as they arrive.
+              </p>
+            </div>
           </Card>
         </div>
       </div>
